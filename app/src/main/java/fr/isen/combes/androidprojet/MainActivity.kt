@@ -1,7 +1,8 @@
+@file:OptIn(ExperimentalMaterialApi::class)
+
 package fr.isen.combes.androidprojet
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -13,44 +14,60 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.BottomSheetScaffold
+import androidx.compose.material.BottomSheetValue
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.TextField
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.rememberBottomSheetScaffoldState
+import androidx.compose.material.rememberBottomSheetState
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,37 +76,77 @@ data class Post(
     val title: String = "",
     val description: String = "",
     val imageUrl: String = "",
-    val publicationDate: Long = 0L
+    val publicationDate: Long = 0L,
+    var likesCount: Int = 0, // Ajouté
+    var isLiked: Boolean = false // Ajouté
+)
+
+data class Comment(
+    val profileImageId: Int,
+    val username: String,
+    val timestamp: Long,
+    val commentText: String
 )
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setTitle("DroidRestaurant")
         setContent {
             AndroidProjetTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    MainScreen(onCommentClick = { showToast("Commentaires") })
-                }
+                MyApp()
             }
         }
     }
+}
 
-    fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+fun MyApp() {
+    val coroutineScope = rememberCoroutineScope()
+    val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
+    )
+    val comments = remember { mutableStateListOf<Comment>(
+        Comment(
+            profileImageId = R.drawable.ic_launcher_background,
+            username = "Utilisateur1",
+            timestamp = System.currentTimeMillis() - 3600000,
+            commentText = "Super photo !"
+        ),
+        Comment(
+            profileImageId = R.drawable.ic_launcher_background,
+            username = "Utilisateur2",
+            timestamp = System.currentTimeMillis() - 7200000,
+            commentText = "J'adore cet endroit."
+        )
+    )}
+
+    BottomSheetScaffold(
+        scaffoldState = bottomSheetScaffoldState,
+        sheetContent = {
+            SheetContent(onDismiss = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.collapse() } }, comments = comments, onAddComment = { commentText ->
+                val newComment = Comment(
+                    profileImageId = R.drawable.ic_launcher_background, // Utiliser un id de ressource approprié
+                    username = "Moi",
+                    timestamp = System.currentTimeMillis(),
+                    commentText = commentText
+                )
+                comments.add(newComment)
+            })
+        },
+        sheetPeekHeight = 0.dp
+    ) {
+        MainScreen(comments = comments, onCommentClick = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() } })
     }
 }
 
 @Composable
-fun MainScreen(onCommentClick: () -> Unit) {
+fun MainScreen(comments: List<Comment>, onCommentClick: () -> Unit) {
     Scaffold(
         topBar = { MyAppTopBar() },
         bottomBar = { MyBottomAppBar() }
     ) { innerPadding ->
-        PostsList(posts = samplePosts(), onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
+        PostsList(posts = samplePosts(), comments = comments, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
     }
 }
 
@@ -192,17 +249,22 @@ fun samplePosts() = listOf(
 )
 
 @Composable
-fun PostsList(posts: List<Post>, onCommentClick: () -> Unit, modifier: Modifier = Modifier) {
+fun PostsList(posts: List<Post>, comments: List<Comment>, onCommentClick: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier = modifier) {
         items(posts) { post ->
-            PostCard(post = post, onCommentClick = onCommentClick)
+            // Ici, on passe la liste complète des commentaires à chaque PostCard
+            // Dans une application réelle, vous voudriez filtrer les commentaires spécifiques à ce post
+            PostCard(post = post, comments = comments, onCommentClick = onCommentClick)
         }
     }
 }
 
-
 @Composable
-fun PostCard(post: Post, onCommentClick: () -> Unit) {
+fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
+    val initialLikes = 120
+    val likesText = remember { mutableStateOf("120 J'aime") }
+    val isLiked = remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -241,27 +303,35 @@ fun PostCard(post: Post, onCommentClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Icône de cœur vide
-                IconButton(onClick = { /* Action pour le cœur */ }) {
+                IconButton(onClick = {
+                    isLiked.value = !isLiked.value
+                    if (isLiked.value) {
+                        // Incrémente le nombre de J'aime et met à jour le texte
+                        likesText.value = "${initialLikes + 1} J'aime"
+                    } else {
+                        // Décrémente le nombre de J'aime et met à jour le texte
+                        likesText.value = "$initialLikes J'aime"
+                    }
+                }) {
                     Icon(
-                        Icons.Filled.FavoriteBorder,
+                        imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                         contentDescription = "Like",
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.Black // Bordure noire pour l'icône
+                        tint = if (isLiked.value) Color.Magenta else Color.Black
                     )
                 }
                 // Icône de bulle de texte
-                IconButton(onClick = { /* Action pour les commentaires */ }) {
+                IconButton(onClick = onCommentClick) {
                     Icon(
                         Icons.Filled.MailOutline,
                         contentDescription = "Comment",
                         modifier = Modifier.size(24.dp),
-                        tint = Color.Black // Bordure noire pour l'icône
+                        tint = Color.Black
                     )
                 }
             }
 
             Text(
-                text = "120 J'aime",
+                text = likesText.value,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
             )
 
@@ -273,10 +343,10 @@ fun PostCard(post: Post, onCommentClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Voir les 335 commentaires",
+                text = "Voir les ${comments.size} commentaires",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable { onCommentClick() } // Rendre le texte cliquable
+                modifier = Modifier.clickable { onCommentClick() }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -295,29 +365,121 @@ fun PostCard(post: Post, onCommentClick: () -> Unit) {
 @Composable
 fun DefaultPreview() {
     AndroidProjetTheme {
-        Scaffold(
-            bottomBar = { MyBottomAppBar() }
-        ) {
-            PostsList(posts = samplePosts(), onCommentClick = {}, modifier = Modifier.padding(it))
-        }
+        MyApp()
     }
 }
 
 @Composable
-fun SheetContent(onDismiss: () -> Unit) {
+fun SheetContent(onDismiss: () -> Unit, comments: List<Comment>, onAddComment: (String) -> Unit) {
+    // Hauteur maximale de la BottomSheet à 50% de la hauteur de l'écran
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val sheetHeight = screenHeight * 0.5f // Limite à 50% de la hauteur de l'écran
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(max = sheetHeight) // Limite la hauteur de la Column
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Commentaires", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(20.dp))
-        // Ici, vous pouvez ajouter le contenu de vos commentaires, par exemple, une liste de commentaires.
-        // Pour cet exemple, nous ajoutons simplement un texte et un bouton pour fermer la feuille.
-        Button(onClick = onDismiss) {
-            Text("Fermer")
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .width(40.dp)
+                .height(4.dp)
+                .background(color = Color.LightGray, shape = RoundedCornerShape(50))
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            "Commentaires",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+        )
+
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // Seuls les commentaires sont scrollables
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            items(comments) { comment ->
+                CommentItem(comment = comment)
+                Divider()
+            }
         }
+
+        NewCommentSection(onAddComment = onAddComment)
     }
 }
 
+@Composable
+fun NewCommentSection(onAddComment: (String) -> Unit) {
+    val (commentText, setCommentText) = remember { mutableStateOf("") }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Votre photo de profil
+        Image(
+            painter = painterResource(id = R.drawable.ic_launcher_background), // Utilisez l'ID de votre propre ressource
+            contentDescription = "Votre photo de profil",
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        // Champ de texte pour ajouter un commentaire
+        TextField(
+            value = commentText,
+            onValueChange = setCommentText,
+            placeholder = { Text("Ajoutez un commentaire...") },
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            textStyle = TextStyle(color = Color.Black),
+            colors = TextFieldDefaults.textFieldColors(backgroundColor = Color.Transparent)
+        )
+        // Bouton pour envoyer le commentaire
+        Button(onClick = {
+            if(commentText.isNotBlank()) {
+                onAddComment(commentText)
+                setCommentText("") // Réinitialiser le champ de texte après l'envoi
+            }
+        }) {
+            Text("Envoyer")
+        }
+    }
+}
+@Composable
+fun CommentItem(comment: Comment) {
+    Row(
+        modifier = Modifier
+            .padding(vertical = 8.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Image(
+            painter = painterResource(id = comment.profileImageId),
+            contentDescription = "Profile picture",
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .border(0.5.dp, Color.Gray, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            Text(
+                text = comment.username,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(comment.timestamp)),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = comment.commentText,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
