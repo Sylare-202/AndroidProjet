@@ -197,7 +197,7 @@ fun LoginPage() {
                 }
             }
             Text(
-                text = "Design by\nCombes / Sayer / Bonnefon & Daoulas",
+                text = "Design by\nCombes / Sayer / Bonnefon / De Sauvage & Daoulas",
                 modifier = Modifier.padding(top = 20.dp),
                 style = MaterialTheme.typography.bodySmall.copy(
                     textAlign = TextAlign.Center,
