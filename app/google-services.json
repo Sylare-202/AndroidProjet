@@ -2,6 +2,7 @@
   "project_info": {
     "project_number": "498642165291",
     "project_id": "androidprojet-f12c9",
+    "firebase_url": "https://androidprojet-f12c9-default-rtdb.europe-west1.firebasedatabase.app/",
     "storage_bucket": "androidprojet-f12c9.appspot.com"
   },
   "client": [
