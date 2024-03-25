@@ -72,7 +72,7 @@ fun ProfileScreen(activity: ComponentActivity) {
 }
 
 @Composable
-fun ProfileInfo(publication: Int = 12, following: Int = 12, follower: Int = 12, firstName: String = "John", lastName: String = "Doe", username: String = "johndoe", description: String = "Developer at XYZ Corp") {
+fun ProfileInfo(publication: Int = 12, following: Int = 12, follower: Int = 12, firstName: String = "Aller", lastName: String = "Giroud", username: String = "meilleurequipe", description: String = "Developer at XYZ Corp") {
         Column {
             Row {
                 Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyMedium)
