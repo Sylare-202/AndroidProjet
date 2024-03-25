@@ -51,7 +51,7 @@ android {
 }
 
 dependencies {
-
+    implementation("com.google.firebase:firebase-database")
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
