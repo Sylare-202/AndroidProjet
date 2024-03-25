@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 
@@ -30,6 +29,11 @@ class ProfileEditActivity : ComponentActivity() {
 
 @Composable
 fun ProfileEditScreen() {
+    var name by remember { mutableStateOf("John Doe") }
+    var userName by remember { mutableStateOf("@JohnDoe") }
+    var description by remember { mutableStateOf("Developer at XYZ Corp") }
+    var email by remember { mutableStateOf("John.doe@johndoe.john") }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -45,16 +49,29 @@ fun ProfileEditScreen() {
             Spacer(modifier = Modifier.height(16.dp))
             ProfilePicture()
             Spacer(modifier = Modifier.height(16.dp))
-            EditableNameField("John Doe")
+            EditableNameField(initialName = name) { name = it }
             Spacer(modifier = Modifier.height(8.dp))
-            EditableUserNameField("@JohnDoe")
+            EditableUserNameField(initialUserName = userName) { userName = it }
             Spacer(modifier = Modifier.height(16.dp))
-            EditableDesciptionField("Developer at XYZ Corp")
+            EditableDesciptionField(initialDescription = description) { description = it }
             Spacer(modifier = Modifier.height(16.dp))
-            EditableEmailField("John.doejohndoe.john")
+            EditableEmailField(initialEmail = email) { email = it }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    println("Name: $name")
+                    println("Username: $userName")
+                    println("Description: $description")
+                    println("Email: $email")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Save Changes")
+            }
         }
     }
 }
+
 
 @Composable
 fun ProfilePicture() {
@@ -66,9 +83,7 @@ fun ProfilePicture() {
 }
 
 @Composable
-fun EditableNameField(initialName: String) {
-    var name by remember { mutableStateOf(initialName) }
-
+fun EditableNameField(initialName: String, onNameChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
@@ -79,12 +94,13 @@ fun EditableNameField(initialName: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
-            value = name,
-            onValueChange = { name = it },
+            value = initialName,
+            onValueChange = { onNameChange(it) },
             modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
             placeholder = {
                 Text(
-                    text = name,
+                    text = "Enter your name",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -93,10 +109,9 @@ fun EditableNameField(initialName: String) {
     }
 }
 
-@Composable
-fun EditableUserNameField(initialUserName: String) {
-    var userName by remember { mutableStateOf(initialUserName) }
 
+@Composable
+fun EditableUserNameField(initialUserName: String, onUserNameChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -106,10 +121,11 @@ fun EditableUserNameField(initialUserName: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
-            value = userName,
-            onValueChange = { userName = it },
+            value = initialUserName,
+            onValueChange = { onUserNameChange(it) },
             modifier = Modifier.fillMaxWidth(),
             textStyle = MaterialTheme.typography.bodyMedium,
+            singleLine = true,
             placeholder = {
                 Text(
                     text = "Enter your username",
@@ -123,10 +139,7 @@ fun EditableUserNameField(initialUserName: String) {
 
 
 @Composable
-fun EditableDesciptionField(initialDescription: String) {
-    var description by remember { mutableStateOf(initialDescription) }
-
-
+fun EditableDesciptionField(initialDescription: String, onDescriptionChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
@@ -137,12 +150,13 @@ fun EditableDesciptionField(initialDescription: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
-            value = description,
-            onValueChange = { description = it },
+            value = initialDescription,
+            onValueChange = { onDescriptionChange(it) },
             modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
             placeholder = {
                 Text(
-                    text = description,
+                    text = initialDescription,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -153,9 +167,7 @@ fun EditableDesciptionField(initialDescription: String) {
 
 
 @Composable
-fun EditableEmailField(initialEmail: String) {
-    var email by remember { mutableStateOf(initialEmail) }
-
+fun EditableEmailField(initialEmail: String, onEmailChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
@@ -166,10 +178,11 @@ fun EditableEmailField(initialEmail: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
-            value = email,
-            onValueChange = { email = it },
+            value = initialEmail,
+            onValueChange = { onEmailChange(it) },
             modifier = Modifier.fillMaxWidth(),
-            isError = !email.contains("@"), // Check if email contains "@", set isError accordingly
+            isError = !initialEmail.contains("@"),
+            singleLine = true,
             placeholder = {
                 Text(
                     text = "Enter your email",
@@ -178,8 +191,7 @@ fun EditableEmailField(initialEmail: String) {
                 )
             }
         )
-        // Add error message if email does not contain "@"
-        if (!email.contains("@")) {
+        if (!initialEmail.contains("@")) {
             Text(
                 text = "Email isnot valid.",
                 style = MaterialTheme.typography.bodySmall,
@@ -196,12 +208,4 @@ fun ProfileEditHeader() {
         text = "Edit Profile",
         style = MaterialTheme.typography.headlineMedium
     )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ProfileEditPreview() {
-    AndroidProjetTheme {
-        ProfileEditScreen()
-    }
 }
