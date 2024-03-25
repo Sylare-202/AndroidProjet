@@ -51,6 +51,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.ToxicBakery.library.bcrypt:bcrypt:+")
     implementation("com.google.firebase:firebase-database")
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
