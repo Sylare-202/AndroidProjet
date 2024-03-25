@@ -11,8 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -24,14 +24,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.tooling.preview.Preview
@@ -59,22 +62,26 @@ fun LoginPage() {
     val context = LocalContext.current
     val email = remember { mutableStateOf("") }
     val password = remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
 
-    Box(modifier = Modifier.fillMaxSize()){
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
         Image(
-            painter = painterResource(id = R.drawable.bg),
+            painter = painterResource(id = R.drawable.bg2),
             contentDescription = "Background",
-            contentScale = ContentScale.FillBounds,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.matchParentSize()
         )
 
         Column(
             modifier = Modifier
-                .fillMaxWidth(),
+                .width(300.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Image(
-                painter = painterResource(id = R.drawable.icon),
+                painter = painterResource(id = R.drawable.icon_fond),
                 contentDescription = "App Logo",
                 modifier = Modifier
                     .size(170.dp)
@@ -82,16 +89,24 @@ fun LoginPage() {
             )
             Text(
                 text = "Cass'Tongram",
-                style = MaterialTheme.typography.headlineMedium.copy(
+                style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     fontFamily = FontFamily(Font(R.font.weed))
                 ),
-                modifier = Modifier.padding(bottom = 20.dp)
+                modifier = Modifier.padding(bottom = 20.dp),
+                color = Color.White
             )
             TextField(
                 value = email.value,
                 onValueChange = { email.value = it },
-                label = { Text("fumeafond@gmail.com") },
+                label = { Text("Adresse Mail") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
@@ -110,7 +125,16 @@ fun LoginPage() {
             TextField(
                 value = password.value,
                 onValueChange = { password.value = it },
-                label = { Text("**********") },
+                label = { Text("Mot de passe") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        loginUser(email.value, password.value, context)
+                    }
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 30.dp)
@@ -124,7 +148,7 @@ fun LoginPage() {
                     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                )
+                ),
             )
             Column(
                 modifier = Modifier,
@@ -172,11 +196,11 @@ fun LoginPage() {
             }
             Text(
                 text = "Design by\nCombes / Sayer / Bonnefon & Daoulas",
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = 20.dp),
                 style = MaterialTheme.typography.bodySmall.copy(
                     textAlign = TextAlign.Center,
                 ),
-                color = Color.Gray
+                color = Color.White
             )
         }
     }
@@ -184,19 +208,17 @@ fun LoginPage() {
 
 fun loginUser(email: String, password: String, context: Context) {
     if (email.isEmpty() || password.isEmpty()) {
-        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Merci de tout remplir !", Toast.LENGTH_SHORT).show()
         return
     }
 
     val auth = Firebase.auth
     auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
         if (task.isSuccessful) {
-            // Login successful
-            Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-            // Redirect to next activity or dashboard
+            Toast.makeText(context, "Vous êtes maintenant connecté !", Toast.LENGTH_SHORT).show()
+            // TODO: Redirect to HomeActivity
         } else {
-            // Login failed
-            Toast.makeText(context, "Login Failed: ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Erreur lors de la connexion : ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 }
