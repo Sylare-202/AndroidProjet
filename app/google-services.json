@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "498642165291",
+    "project_id": "androidprojet-f12c9",
+    "storage_bucket": "androidprojet-f12c9.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:498642165291:android:1798b77a5d388ae4c7146e",
+        "android_client_info": {
+          "package_name": "fr.isen.combes.androidprojet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPaOuElO6xjTQ2JYrrEc8wwnQUT2eS7xg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
