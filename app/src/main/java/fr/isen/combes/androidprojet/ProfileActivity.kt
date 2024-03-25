@@ -1,6 +1,5 @@
 package fr.isen.combes.androidprojet
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,18 +12,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.SideEffect
 
 import androidx.compose.ui.platform.LocalContext
-
+import androidx.compose.foundation.clickable
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,7 +56,7 @@ fun ProfileScreen() {
 
             }
             Spacer(modifier = Modifier.height(16.dp))
-            EditProfileButton()
+            ProfileButton()
             Divider(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -75,27 +70,27 @@ fun ProfileScreen() {
 }
 
 @Composable
-fun ProfileInfo() {
+fun ProfileInfo(publication: Int = 12, following: Int = 12, follower: Int = 12, firstName: String = "John", lastName: String = "Doe", username: String = "johndoe", description: String = "Developer at XYZ Corp") {
         Column {
             Row {
-                Text(text = "John Doe", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyMedium)
                 Spacer(modifier = Modifier.height(4.dp))
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "@johndoe", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(text = "@$username", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             Spacer(modifier = Modifier.height(4.dp))
-            PublicationInformation()
+            PublicationInformation(publication, following, follower)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Developer at XYZ Corp", style = MaterialTheme.typography.bodyLarge)
+            Text(text = "$description", style = MaterialTheme.typography.bodyLarge)
         }
 }
 
 @Composable
-fun PublicationInformation() {
+fun PublicationInformation(publication: Int, following: Int, follower: Int) {
     Row {
         Column(verticalArrangement = Arrangement.Center) {
             Text(
-                text = "12",
+                text = "$publication",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
@@ -106,7 +101,7 @@ fun PublicationInformation() {
         Spacer(modifier = Modifier.width(10.dp))
         Column(verticalArrangement = Arrangement.Center) {
             Text(
-                text = "12",
+                text = "$following",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
@@ -117,7 +112,7 @@ fun PublicationInformation() {
         Spacer(modifier = Modifier.width(10.dp))
         Column(verticalArrangement = Arrangement.Center) {
             Text(
-                text = "12",
+                text = "$follower",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
@@ -142,9 +137,9 @@ fun ProfileHeader() {
     )
 }
 @Composable
-fun EditProfileButton() {
+fun ProfileButton() {
     Button(
-        onClick = { /* Handle Edit Profile button click */ },
+        onClick = { /* TODO: Handle the redirection to the profil modification page */ },
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(text = "Edit Profile")
@@ -153,12 +148,11 @@ fun EditProfileButton() {
 
 
 @Composable
-fun PostGrid() {
-    val postCount = 9 // Total number of posts to display
-    val postsPerRow = 3 // Number of posts per row
+fun PostGrid(userNumberPost: Int = 9) {
+    val postsPerRow = 3
 
     // Calculate number of rows needed
-    val rowCount = (postCount + postsPerRow - 1) / postsPerRow
+    val rowCount = (userNumberPost + postsPerRow - 1) / postsPerRow
 
     Column {
         repeat(rowCount) { rowIndex ->
@@ -168,7 +162,7 @@ fun PostGrid() {
             ) {
                 repeat(postsPerRow) { columnIndex ->
                     val postIndex = rowIndex * postsPerRow + columnIndex + 1
-                    if (postIndex <= postCount) {
+                    if (postIndex <= userNumberPost) {
                         PostImage(postIndex)
                     }
                 }
@@ -198,7 +192,8 @@ fun PostImage(postIndex: Int) {
         contentDescription = "Post Image $postIndex",
         modifier = Modifier
             .size(125.dp)
-            .padding(1.dp),
+            .padding(1.dp)
+            .clickable { /* TODO: Add the redirection to the specific post knowing the index (here in dev) */ },
         contentScale = ContentScale.Crop
     )
 }
