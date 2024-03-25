@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val intent = Intent(this, ProfileActivity::class.java)
+                    val intent = Intent(this, ProfileViewActivity::class.java)
                     startActivity(intent)
                 }
             }

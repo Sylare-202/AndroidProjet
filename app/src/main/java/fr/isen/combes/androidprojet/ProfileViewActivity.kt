@@ -20,19 +20,21 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
-class ProfileActivity : ComponentActivity() {
+import android.content.Intent
+
+class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AndroidProjetTheme {
-                ProfileScreen()
+                ProfileScreen(this@ProfileViewActivity)
             }
         }
     }
 }
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(activity: ComponentActivity) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -49,14 +51,14 @@ fun ProfileScreen() {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                ProfileHeader()
+                ProfileHeader(size = 120)
                 Spacer(modifier = Modifier.width(16.dp))
                 ProfileInfo()
                 Spacer(modifier = Modifier.height(16.dp))
 
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ProfileButton()
+            ProfileButton(activity)
             Divider(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -125,21 +127,24 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
 
 
 @Composable
-fun ProfileHeader() {
+fun ProfileHeader(size: Int) {
     Image(
         painter = painterResource(id = R.drawable.avatar),
         contentDescription = "Profile Image",
         modifier = Modifier
-            .size(120.dp)
+            .size(size.dp)
             .padding(16.dp)
-            .clip(MaterialTheme.shapes.large),
+            .clip(MaterialTheme.shapes.extraLarge),
         contentScale = ContentScale.Crop,
     )
 }
 @Composable
-fun ProfileButton() {
+fun ProfileButton(activity: ComponentActivity) {
     Button(
-        onClick = { /* TODO: Handle the redirection to the profil modification page */ },
+        onClick = {
+            val intent = Intent(activity, ProfileEditActivity::class.java)
+            activity.startActivity(intent)
+        },
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(text = "Edit Profile")
@@ -201,12 +206,4 @@ fun PostImage(postIndex: Int) {
 
 fun getResourceId(name: String, type: String, context: Context): Int {
     return context.resources.getIdentifier(name, type, context.packageName)
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    AndroidProjetTheme {
-        ProfileScreen()
-    }
 }
