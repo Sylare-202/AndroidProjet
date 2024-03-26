@@ -20,8 +20,15 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.toUpperCase
 import coil.compose.rememberImagePainter
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
@@ -120,7 +127,7 @@ fun ProfileScreen(activity: ComponentActivity, user: User) {
 
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ProfileButton(activity, user)
+            ProfileButton(activity, user, "edit profile")
             Divider(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -137,14 +144,25 @@ fun ProfileScreen(activity: ComponentActivity, user: User) {
 fun ProfileInfo(publication: Int, following: Int, follower: Int, firstName: String, lastName: String, username: String, description: String) {
         Column {
             Row {
-                Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = "$firstName $lastName",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            Text(text = "@$username", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(
+                text = "@$username",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF00C974)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             PublicationInformation(publication, following, follower)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "$description", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = "$description",
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
 }
 
@@ -155,7 +173,8 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
             Text(
                 text = "$publication",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.width(5.dp))
             Text(text = "Publication", style = MaterialTheme.typography.bodyMedium)
@@ -166,7 +185,8 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
             Text(
                 text = "$following",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.width(5.dp))
             Text(text = "Following", style = MaterialTheme.typography.bodyMedium)
@@ -177,7 +197,8 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
             Text(
                 text = "$follower",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.width(5.dp))
             Text(text = "Follower", style = MaterialTheme.typography.bodyMedium)
@@ -201,32 +222,43 @@ fun ProfileHeader(size: Int, user: User) {
 }
 
 @Composable
-fun ProfileButton(activity: ComponentActivity, userData: User) {
-    Button(
-        onClick = {
-            val intent = Intent(activity, ProfileEditActivity::class.java)
-            // Pass user data as extra to the intent
-            intent.putExtra("userFirstName", userData.firstname)
-            intent.putExtra("userLastName", userData.lastname)
-            intent.putExtra("userUsername", userData.username)
-            intent.putExtra("userDescription", userData.description)
-            intent.putExtra("userEmail", userData.email)
-            intent.putExtra("imageUri", userData.profilePicture)
-
-            activity.startActivity(intent)
-        },
-        modifier = Modifier.fillMaxWidth()
+fun ProfileButton(activity: ComponentActivity, userData: User, text: String) {
+    Box(
+        modifier = Modifier
+            .padding(bottom = 10.dp)
+            .background(
+                color = Color(0xFF00C974),
+                shape = MaterialTheme.shapes.extraLarge
+            )
     ) {
-        Text(text = "Edit Profile")
+        ClickableText(
+            text = AnnotatedString(text).toUpperCase(),
+            onClick = {
+                val intent = Intent(activity, ProfileEditActivity::class.java)
+                // Pass user data as extra to the intent
+                intent.putExtra("userFirstName", userData.firstname)
+                intent.putExtra("userLastName", userData.lastname)
+                intent.putExtra("userUsername", userData.username)
+                intent.putExtra("userDescription", userData.description)
+                intent.putExtra("userEmail", userData.email)
+                intent.putExtra("imageUri", userData.profilePicture)
+
+                activity.startActivity(intent)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            style = TextStyle(
+                textAlign = TextAlign.Center,
+                color = Color.White
+            )
+        )
     }
 }
-
-
 
 @Composable
 fun PostGrid(userNumberPost: Int = 9) {
     val postsPerRow = 3
-
 
     val rowCount = (userNumberPost + postsPerRow - 1) / postsPerRow
 
@@ -273,25 +305,6 @@ fun PostImage(postIndex: Int) {
         contentScale = ContentScale.Crop
     )
 }
-
-
-/*fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit) {
-    val database = FirebaseDatabase.getInstance()
-    val usersRef = database.getReference("Users/$userId")
-
-    usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
-        override fun onDataChange(dataSnapshot: DataSnapshot) {
-            val userData = dataSnapshot.getValue(User::class.java)
-            onUserDataFetched(userData)
-        }
-
-        override fun onCancelled(databaseError: DatabaseError) {
-            // Handle errors
-            onUserDataFetched(null)
-            println("Error fetching user data: ${databaseError.message}")
-        }
-    })
-}*/
 
 fun getResourceId(name: String, type: String, context: Context): Int {
     return context.resources.getIdentifier(name, type, context.packageName)
