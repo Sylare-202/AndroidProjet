@@ -20,22 +20,52 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.toUpperCase
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+
+data class User(
+    val description: String = "",
+    val email: String = "",
+    val firstname: String = "",
+    val lastname: String = "",
+    val password: String = "",
+    val profilePicture: String = "",
+    val username: String = ""
+) {
+    constructor() : this("", "", "", "", "", "", "")
+}
 
 class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
-        setContent {
-            AndroidProjetTheme {
-                ProfileScreen(this@ProfileViewActivity)
+        fetchUserDataFromFirebase(Firebase.auth.currentUser?.uid ?: "") { user ->
+            if (user != null) {
+                setContent {
+                    AndroidProjetTheme {
+                        println("User data: $user")
+                        ProfileScreen(this@ProfileViewActivity, user)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun ProfileScreen(activity: ComponentActivity) {
+fun ProfileScreen(activity: ComponentActivity, user: User) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -49,8 +79,9 @@ fun ProfileScreen(activity: ComponentActivity) {
         ) {
             IconButton(
                 onClick = {
-                    // Perform logout action here
-                    // For example, navigate to the login screen or sign out the user
+                    Firebase.auth.signOut()
+                    val intent = Intent(activity, LoginActivity::class.java)
+                    activity.startActivity(intent)
                 },
                 modifier = Modifier
                     .padding(top = 0.dp, end = 0.dp)
@@ -69,7 +100,7 @@ fun ProfileScreen(activity: ComponentActivity) {
             ) {
                 ProfileHeader(size = 120)
                 Spacer(modifier = Modifier.width(16.dp))
-                ProfileInfo()
+                ProfileInfo(12, 12, 12, user.firstname, user.lastname, user.username, user.description)
                 Spacer(modifier = Modifier.height(16.dp))
 
             }
@@ -88,7 +119,7 @@ fun ProfileScreen(activity: ComponentActivity) {
 }
 
 @Composable
-fun ProfileInfo(publication: Int = 12, following: Int = 12, follower: Int = 12, firstName: String = "Aller", lastName: String = "Giroud", username: String = "meilleurequipe", description: String = "Developer at XYZ Corp") {
+fun ProfileInfo(publication: Int, following: Int, follower: Int, firstName: String, lastName: String, username: String, description: String) {
         Column {
             Row {
                 Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyLarge)
@@ -218,6 +249,24 @@ fun PostImage(postIndex: Int) {
     )
 }
 
+
+fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit) {
+    val database = FirebaseDatabase.getInstance()
+    val usersRef = database.getReference("Users/$userId")
+
+    usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        override fun onDataChange(dataSnapshot: DataSnapshot) {
+            val userData = dataSnapshot.getValue(User::class.java)
+            onUserDataFetched(userData)
+        }
+
+        override fun onCancelled(databaseError: DatabaseError) {
+            // Handle errors
+            onUserDataFetched(null)
+            println("Error fetching user data: ${databaseError.message}")
+        }
+    })
+}
 
 fun getResourceId(name: String, type: String, context: Context): Int {
     return context.resources.getIdentifier(name, type, context.packageName)
