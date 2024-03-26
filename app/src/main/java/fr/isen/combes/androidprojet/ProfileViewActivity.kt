@@ -22,6 +22,7 @@ import androidx.compose.foundation.clickable
 import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import coil.compose.rememberImagePainter
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.DataSnapshot
@@ -92,7 +93,7 @@ fun ProfileScreen(activity: ComponentActivity, user: User) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                ProfileHeader(size = 120)
+                ProfileHeader(size = 120, user = user)
                 Spacer(modifier = Modifier.width(16.dp))
                 ProfileInfo(12, 12, 12, user.firstname, user.lastname, user.username, user.description)
                 Spacer(modifier = Modifier.height(16.dp))
@@ -167,9 +168,9 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
 
 
 @Composable
-fun ProfileHeader(size: Int) {
+fun ProfileHeader(size: Int, user: User) {
     Image(
-        painter = painterResource(id = R.drawable.avatar),
+        painter = rememberImagePainter(user.profilePicture.toString()),
         contentDescription = "Profile Image",
         modifier = Modifier
             .size(size.dp)
@@ -178,6 +179,7 @@ fun ProfileHeader(size: Int) {
         contentScale = ContentScale.Crop,
     )
 }
+
 @Composable
 fun ProfileButton(activity: ComponentActivity, userData: User) {
     Button(
@@ -189,6 +191,8 @@ fun ProfileButton(activity: ComponentActivity, userData: User) {
             intent.putExtra("userUsername", userData.username)
             intent.putExtra("userDescription", userData.description)
             intent.putExtra("userEmail", userData.email)
+            intent.putExtra("imageUri", userData.profilePicture)
+
             activity.startActivity(intent)
         },
         modifier = Modifier.fillMaxWidth()

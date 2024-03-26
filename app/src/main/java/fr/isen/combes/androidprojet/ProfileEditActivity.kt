@@ -1,12 +1,20 @@
 package fr.isen.combes.androidprojet
 
+import android.app.Activity
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,15 +27,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.toUpperCase
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.database
+import coil.compose.rememberImagePainter
+import com.google.firebase.storage.storage
 
 class ProfileEditActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,10 +44,11 @@ class ProfileEditActivity : ComponentActivity() {
         val userUsername = intent.getStringExtra("userUsername")
         val userDescription = intent.getStringExtra("userDescription")
         val userEmail = intent.getStringExtra("userEmail")
+        val imageUri = intent.getStringExtra("imageUri")
 
         setContent {
             AndroidProjetTheme {
-                ProfileEditScreen(this@ProfileEditActivity, userFirstName, userLastName, userUsername, userDescription, userEmail)
+                ProfileEditScreen(this@ProfileEditActivity, userFirstName, userLastName, userUsername, userDescription, userEmail, imageUri)
             }
         }
     }
@@ -53,13 +61,16 @@ fun ProfileEditScreen(
     userLastName: String?,
     userUsername: String?,
     userDescription: String?,
-    userEmail: String?
+    userEmail: String?,
+    imageUri: String?
 ) {
     var firstName by remember { mutableStateOf(userFirstName) }
     var lastName by remember { mutableStateOf(userLastName) }
-    var userName by remember { mutableStateOf("@$userUsername") }
+    var userName by remember { mutableStateOf(userUsername) }
     var description by remember { mutableStateOf(userDescription) }
     var email by remember { mutableStateOf(userEmail) }
+
+    var imageUri by remember { mutableStateOf(imageUri) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -75,13 +86,18 @@ fun ProfileEditScreen(
             item {
                 ProfileEditHeader()
                 Spacer(modifier = Modifier.height(16.dp))
-                ProfilePicture()
+                ProfilePicture(
+                    imageUri = imageUri
+                ) { uri ->
+                    imageUri = uri.toString()
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
                 firstName?.let { EditableFirstNameField(initialName = it) { firstName = it } }
                 Spacer(modifier = Modifier.height(8.dp))
                 lastName?.let { EditableLastNameField(initialName = it) { lastName = it } }
                 Spacer(modifier = Modifier.height(8.dp))
-                EditableUserNameField(initialUserName = userName) { userName = it }
+                userName?.let { EditableUserNameField(initialUserName = it) { userName = it } }
                 Spacer(modifier = Modifier.height(16.dp))
                 description?.let { EditableDesciptionField(initialDescription = it) { description = it } }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -94,14 +110,22 @@ fun ProfileEditScreen(
                         println("Username: $userName")
                         println("Description: $description")
                         println("Email: $email")
+                        println("Image URI: $imageUri")
+
+                        // Here you can call a function to upload the image to Firebase storage
+                        // You can use the 'uploadProfilePicture' function provided
+
+                        // Then, update user data in Firebase
                         updateUserInFirebase(
                             userId = Firebase.auth.currentUser?.uid ?: "",
                             firstName = firstName ?: "",
                             lastName = lastName ?: "",
                             username = userName ?: "",
                             description = description ?: "",
-                            email = email ?: ""
+                            email = email ?: "",
+                            imageUri = imageUri?.let { Uri.parse(it) }
                         )
+
                         val intent = Intent(activity, ProfileViewActivity::class.java)
                         activity.startActivity(intent)
 
@@ -115,44 +139,117 @@ fun ProfileEditScreen(
     }
 }
 
+@Composable
+fun ProfilePicture(
+    imageUri: String?,
+    onImageSelected: (Uri) -> Unit
+) {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { onImageSelected(it) }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Profile Picture",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(200.dp)
+                .background(Color.LightGray, shape = MaterialTheme.shapes.medium)
+                .clickable {
+                    launcher.launch("image/*")
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            println("imageUri: $imageUri")
+            if (imageUri != null) {
+                Image(
+                    painter = rememberImagePainter(imageUri),
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier.size(180.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.AccountCircle,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier.size(100.dp)
+                )
+            }
+        }
+    }
+}
+
+
+
 fun updateUserInFirebase(
     userId: String,
     firstName: String,
     lastName: String,
     username: String,
     description: String,
-    email: String
+    email: String,
+    imageUri: Uri?
 ) {
     val database: DatabaseReference = Firebase.database.reference
     val userRef = database.child("Users").child(userId)
 
-    val userData = mapOf(
-        "firstname" to firstName,
-        "lastname" to lastName,
-        "username" to username,
-        "description" to description,
-        "email" to email
-        // Add other fields as needed
-    )
+    if (imageUri != null) {
+        uploadProfilePicture(imageUri, userId) { profilePictureUrl ->
+            val userData = mapOf(
+                "firstname" to firstName,
+                "lastname" to lastName,
+                "username" to username,
+                "description" to description,
+                "email" to email,
+                "profilePicture" to profilePictureUrl
+            )
 
-    userRef.updateChildren(userData)
+            userRef.updateChildren(userData)
+                .addOnSuccessListener {
+                    println("User data updated successfully")
+                }
+                .addOnFailureListener { e ->
+                    println("Error updating user data: $e")
+                }
+        }
+    } else {
+        val userData = mapOf(
+            "firstname" to firstName,
+            "lastname" to lastName,
+            "username" to username,
+            "description" to description,
+            "email" to email
+        )
+
+        userRef.updateChildren(userData)
+            .addOnSuccessListener {
+                println("User data updated successfully")
+            }
+            .addOnFailureListener { e ->
+                println("Error updating user data: $e")
+            }
+    }
+}
+
+fun uploadProfilePicture(uri: Uri, userId: String, onComplete: (String) -> Unit) {
+    val storageReference = Firebase.storage.reference.child("profilePictures/$userId.jpg")
+    storageReference.putFile(uri)
         .addOnSuccessListener {
-            println("User data updated successfully")
+            storageReference.downloadUrl.addOnSuccessListener { uri ->
+                onComplete(uri.toString())
+            }
         }
-        .addOnFailureListener { e ->
-            println("Error updating user data: $e")
+        .addOnFailureListener {
+            // Handle failure
         }
 }
 
-
-@Composable
-fun ProfilePicture() {
-    Text(
-        text = "Profile Picture",
-        style = MaterialTheme.typography.bodySmall
-    )
-    ProfileHeader(size = 200)
-}
 
 @Composable
 fun EditableFirstNameField(initialName: String, onNameChange: (String) -> Unit) {
