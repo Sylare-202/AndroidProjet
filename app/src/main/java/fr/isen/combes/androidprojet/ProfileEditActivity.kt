@@ -62,7 +62,7 @@ fun ProfileEditScreen(
     userUsername: String?,
     userDescription: String?,
     userEmail: String?,
-    imageUri: String?
+    imageUrl: String?
 ) {
     var firstName by remember { mutableStateOf(userFirstName) }
     var lastName by remember { mutableStateOf(userLastName) }
@@ -70,7 +70,10 @@ fun ProfileEditScreen(
     var description by remember { mutableStateOf(userDescription) }
     var email by remember { mutableStateOf(userEmail) }
 
-    var imageUri by remember { mutableStateOf(imageUri) }
+    var imageUri by remember { mutableStateOf(imageUrl) }
+
+    var oldImageUri = imageUrl.toString()
+    println("oldImageUri: $oldImageUri")
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -112,22 +115,29 @@ fun ProfileEditScreen(
                         println("Email: $email")
                         println("Image URI: $imageUri")
 
-                        // Here you can call a function to upload the image to Firebase storage
-                        // You can use the 'uploadProfilePicture' function provided
+                        if (imageUri == oldImageUri) {
+                            updateUserInFirebase(
+                                userId = Firebase.auth.currentUser?.uid ?: "",
+                                firstName = firstName ?: "",
+                                lastName = lastName ?: "",
+                                username = userName ?: "",
+                                description = description ?: "",
+                                email = email ?: "",
+                                imageUri = null
+                            )
+                        } else {
+                            updateUserInFirebase(
+                                userId = Firebase.auth.currentUser?.uid ?: "",
+                                firstName = firstName ?: "",
+                                lastName = lastName ?: "",
+                                username = userName ?: "",
+                                description = description ?: "",
+                                email = email ?: "",
+                                imageUri = imageUri?.let { Uri.parse(it) }
+                            )
+                        }
 
-                        // Then, update user data in Firebase
-                        updateUserInFirebase(
-                            userId = Firebase.auth.currentUser?.uid ?: "",
-                            firstName = firstName ?: "",
-                            lastName = lastName ?: "",
-                            username = userName ?: "",
-                            description = description ?: "",
-                            email = email ?: "",
-                            imageUri = imageUri?.let { Uri.parse(it) }
-                        )
-
-                        val intent = Intent(activity, ProfileViewActivity::class.java)
-                        activity.startActivity(intent)
+                        activity.finish()
 
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -246,7 +256,7 @@ fun uploadProfilePicture(uri: Uri, userId: String, onComplete: (String) -> Unit)
             }
         }
         .addOnFailureListener {
-            // Handle failure
+            println("Error uploading profile picture: $it")
         }
 }
 
