@@ -54,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +73,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import kotlinx.coroutines.launch
@@ -80,14 +85,16 @@ import java.util.Date
 import java.util.Locale
 
 data class Post(
-    val title: String = "",
-    val description: String = "",
-    val imageUrl: String = "",
-    val publicationDate: Long = 0L,
+    var id: String = "",
+    var description: String = "",
+    var imageUrl: String = "",
+    var publicationDate: String = "", // Modifié pour utiliser une String, à convertir en date si nécessaire
     var likesCount: Int = 0,
-    var isLiked: Boolean = false,
-    val comments: MutableList<Comment> = mutableListOf() // Ajoutez cette ligne
+    var likedBy: Set<String> = setOf(), // Nouveau champ pour garder une trace des utilisateurs qui ont aimé ce post
+    var uid: String = "", // UID de l'utilisateur qui a réalisé le Post
+    val comments: MutableList<Comment> = mutableListOf() // Liste des commentaires si vous les incluez ici
 )
+
 
 data class Comment(
     val profileImageId: Int,
@@ -125,6 +132,80 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+fun fetchPostsFromFirebase(onPostsFetched: (List<Post>) -> Unit) {
+    val postsRef = Firebase.database.reference.child("Post")
+    postsRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            val posts = mutableListOf<Post>()
+            for (postSnapshot in snapshot.children) {
+                val post = postSnapshot.getValue(Post::class.java)?.apply {
+                    // Mise à jour pour correspondre à la structure de votre Post
+                    this.id = postSnapshot.key ?: ""
+                    this.uid = postSnapshot.child("uid").getValue(String::class.java) ?: ""
+                    this.imageUrl = postSnapshot.child("image").getValue(String::class.java) ?: ""
+                    this.description = postSnapshot.child("description").getValue(String::class.java) ?: ""
+                    this.publicationDate = postSnapshot.child("date").getValue(String::class.java) ?: ""
+                    this.likesCount = postSnapshot.child("like").getValue(Int::class.java) ?: 0
+                }
+                post?.let { posts.add(it) }
+            }
+            onPostsFetched(posts)
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            Log.e("fetchPostsFromFirebase", "Erreur lors de la récupération des posts: ${error.message}")
+        }
+    })
+}
+
+
+fun fetchAllUsers(onUsersFetched: (Map<String, User>) -> Unit) {
+    val usersRef = Firebase.database.reference.child("Users")
+    usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            // Filtrer les entrées null et convertir le résultat en une Map non-nulle.
+            val usersMap = snapshot.children.mapNotNull { dataSnapshot ->
+                dataSnapshot.key?.let { key ->
+                    dataSnapshot.getValue(User::class.java)?.let { user ->
+                        key to user
+                    }
+                }
+            }.toMap()
+            onUsersFetched(usersMap)
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            Log.e("fetchAllUsers", "Error fetching users: ${error.message}")
+            onUsersFetched(emptyMap())
+        }
+    })
+}
+
+fun addCommentToFirebase(text: String, postId: String, context: Context) {
+    val uid = Firebase.auth.currentUser?.uid
+    if (uid != null && postId.isNotEmpty()) {
+        val databaseReference = Firebase.database.reference.child("Comments").push()
+
+        val commentMap = hashMapOf(
+            "id" to databaseReference.key,
+            "text" to text,
+            "postId" to postId,
+            "userId" to uid,
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        databaseReference.setValue(commentMap).addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                showToast(context, "Commentaire ajouté avec succès")
+            } else {
+                showToast(context, "Erreur lors de l'ajout du commentaire")
+            }
+        }
+    } else {
+        showToast(context, "Utilisateur non identifié")
+    }
+}
+
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun MyApp(user: User) {
@@ -132,45 +213,49 @@ fun MyApp(user: User) {
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
     )
+    val postsState = remember { mutableStateOf<List<Post>>(emptyList()) }
+    val usersState = remember { mutableStateOf<Map<String, User>>(emptyMap()) }
+
     val selectedPost = remember { mutableStateOf<Post?>(null) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        fetchAllUsers { users ->
+            usersState.value = users
+            fetchPostsFromFirebase { posts ->
+                postsState.value = posts
+            }
+        }
+    }
 
     BottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
         sheetContent = {
             // Utilisez le post sélectionné pour afficher les commentaires
             selectedPost.value?.let { post ->
-                SheetContent(post = post, user = user) { commentText ->
-                    val newComment = Comment(
-                        profileImageId = R.drawable.ic_launcher_background,
-                        username = "Moi",
-                        timestamp = System.currentTimeMillis(),
-                        commentText = commentText
-                    )
-                    post.comments.add(newComment)
-                    // Votre logique pour gérer le commentaire ajouté, si nécessaire
+                SheetContent(post = selectedPost.value!!, user = user, context = context) { commentText, postId ->
+                    addCommentToFirebase(commentText, postId, context)
                 }
             } ?: Text("Pas de post sélectionné") // Fallback si aucun post n'est sélectionné
         },
         sheetPeekHeight = 0.dp
     ) {
-        MainScreen(onCommentClick = { post ->
+        MainScreen(onCommentClick = { post, postId ->
             selectedPost.value = post
             coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() }
-        }, profilePictureUrl = user.profilePicture)
+        }, profilePictureUrl = user.profilePicture, posts = postsState.value, users = usersState.value)
     }
 }
 
-
-
 @Composable
-fun MainScreen(onCommentClick: (Post) -> Unit, profilePictureUrl: String?) {
+fun MainScreen(onCommentClick: (Post, String) -> Unit, profilePictureUrl: String?, posts: List<Post>, users: Map<String, User>) {
     val context = LocalContext.current // Récupérer le contexte local
 
     Scaffold(
         topBar = { MyAppTopBar() },
         bottomBar = { MyBottomAppBar(profilePictureUrl, context) }
     ) { innerPadding ->
-        PostsList(posts = samplePosts(), onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
+        PostsList(posts = posts, users = users, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
     }
 }
 
@@ -267,31 +352,30 @@ fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
     }
 }
 
-// Données d'exemple pour les posts
-fun samplePosts() = listOf(
-    Post(
-        title = "Premier post",
-        description = "Ceci est le premier post de notre flux d'actualités.",
-        imageUrl = "",
-        publicationDate = System.currentTimeMillis() - 100000,
-        comments = mutableListOf() // Initialiser avec une liste vide ou des commentaires préexistants
-    )
-)
-
 @Composable
-fun PostsList(posts: List<Post>, onCommentClick: (Post) -> Unit, modifier: Modifier = Modifier) {
-    LazyColumn {
+fun PostsList(posts: List<Post>, users: Map<String, User>, onCommentClick: (Post, String) -> Unit, modifier: Modifier = Modifier) {
+    LazyColumn(modifier = modifier) {
         items(posts) { post ->
-            PostCard(post = post, onCommentClick = onCommentClick)
+            PostCard(post = post, users = users, onCommentClick = { selectedPost, postId ->
+                onCommentClick(selectedPost, postId)
+            })
         }
     }
 }
 
 @Composable
-fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
-    val initialLikes = 120
-    val likesText = remember { mutableStateOf("120 J'aime") }
+fun PostCard(post: Post, users: Map<String, User>, onCommentClick: (Post, String) -> Unit) {
+    val likesText = remember { mutableStateOf("${post.likesCount} J'aime") }
     val isLiked = remember { mutableStateOf(false) }
+
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val postDate = dateFormat.format(Date()) // Utilisez la bonne date du post
+
+    val user = users[post.uid] // Trouver l'utilisateur associé au post
+
+    // Fallbacks pour le cas où l'utilisateur n'est pas trouvé
+    val username = user?.username ?: "Utilisateur inconnu"
+    val userProfilePictureUrl = user?.profilePicture ?: "" // Remplacer par une URL d'image de profil par défaut si souhaité
 
     Card(
         modifier = Modifier
@@ -303,25 +387,31 @@ fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
             // Header de la Card avec l'image de profil et le nom d'utilisateur
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_background), // Remplacez par l'image de profil réelle
+                    painter = rememberImagePainter(userProfilePictureUrl, builder = {
+                        crossfade(true)
+                    }),
                     contentDescription = "Profile Picture",
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(CircleShape) // Pour rendre l'image circulaire
+                        .clip(CircleShape)
+                        .fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Username", style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
+                Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Image du post prenant toute la largeur de la Card
             Image(
-                painter = painterResource(id = R.drawable.ic_launcher_foreground), // Remplacez par l'image du post réelle
+                painter = rememberImagePainter(post.imageUrl),
                 contentDescription = "Post Image",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp) // Hauteur fixe pour l'image, ajustez selon vos besoins
+                    .height(200.dp)
+                    .fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -332,13 +422,14 @@ fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
             ) {
                 // Icône de cœur vide
                 IconButton(onClick = {
+                    // Ici, mettez à jour votre base de données Firebase pour refléter le like et mettez à jour le compteur de likes localement.
                     isLiked.value = !isLiked.value
                     if (isLiked.value) {
-                        // Incrémente le nombre de J'aime et met à jour le texte
-                        likesText.value = "${initialLikes + 1} J'aime"
+                        // Simuler l'ajout d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
+                        likesText.value = "${post.likesCount + 1} J'aime"
                     } else {
-                        // Décrémente le nombre de J'aime et met à jour le texte
-                        likesText.value = "$initialLikes J'aime"
+                        // Simuler le retrait d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
+                        likesText.value = "${post.likesCount} J'aime"
                     }
                 }) {
                     Icon(
@@ -348,7 +439,7 @@ fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
                     )
                 }
                 // Icône de bulle de texte
-                IconButton(onClick = { onCommentClick(post) }) {
+                IconButton(onClick = { onCommentClick(post, post.id) }) {
                     Icon(
                         Icons.Filled.MailOutline,
                         contentDescription = "Comment",
@@ -374,14 +465,12 @@ fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
                 text = "Voir les ${post.comments.size} commentaires",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable { onCommentClick(post) }
+                modifier = Modifier.clickable { onCommentClick(post, post.id) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Published: ${
-                    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(post.publicationDate))
-                }",
+                text = "Publié le $postDate",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodySmall
             )
@@ -390,7 +479,7 @@ fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
 }
 
 @Composable
-fun SheetContent(post: Post, user: User, onAddComment: (String) -> Unit) {
+fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String) -> Unit) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val sheetHeight = screenHeight * 0.5f
 
@@ -424,21 +513,16 @@ fun SheetContent(post: Post, user: User, onAddComment: (String) -> Unit) {
             }
         }
 
-        NewCommentSection(user, post) { commentText ->
-            val newComment = Comment(
-                profileImageId = R.drawable.ic_launcher_background, // Remplacer par l'ID réel de l'image de profil
-                username = user.username, // Supposons que l'objet User contient le nom d'utilisateur
-                timestamp = System.currentTimeMillis(),
-                commentText = commentText
-            )
-            post.comments.add(newComment)
-            onAddComment(commentText) // Vous pouvez laisser cette fonction vide si rien de spécifique n'est à faire
+        NewCommentSection(user, post.id) { commentText, postId ->
+            onAddComment(commentText, postId)
+            // Utilisez le contexte passé en argument
+            addCommentToFirebase(commentText, postId, context)
         }
     }
 }
 
 @Composable
-fun NewCommentSection(user: User, post: Post, onAddComment: (String) -> Unit) {
+fun NewCommentSection(user: User, postId: String, onAddComment: (String, String) -> Unit) {
     val (commentText, setCommentText) = remember { mutableStateOf("") }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -466,19 +550,8 @@ fun NewCommentSection(user: User, post: Post, onAddComment: (String) -> Unit) {
 
         Button(onClick = {
             if (commentText.isNotBlank()) {
-                // Assurez-vous que `User` contient `profilePictureId` ou similaire pour l'image de profil
-                // Dans cet exemple, `R.drawable.ic_launcher_background` est utilisé comme placeholder
-                val profileImageId = R.drawable.ic_launcher_background // Remplacez par la logique d'obtention de l'ID d'image réelle
-                val newComment = Comment(
-                    profileImageId = profileImageId,
-                    username = user.username,
-                    timestamp = System.currentTimeMillis(),
-                    commentText = commentText
-                )
-                post.comments.add(newComment)
-                onAddComment(commentText)
+                onAddComment(commentText, postId)
                 setCommentText("")
-                // Notez que vous pourriez avoir besoin de notifier l'UI d'un changement dans la liste des commentaires.
             }
         }) {
             Text("Envoyer")
