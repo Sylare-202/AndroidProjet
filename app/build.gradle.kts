@@ -51,6 +51,7 @@ android {
 }
 
 dependencies {
+    implementation("io.coil-kt:coil-compose:1.4.0")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.ToxicBakery.library.bcrypt:bcrypt:+")
     implementation("com.google.firebase:firebase-database")

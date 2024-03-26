@@ -1,15 +1,23 @@
 package fr.isen.combes.androidprojet
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -41,6 +49,10 @@ import androidx.compose.ui.text.toUpperCase
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 
@@ -60,150 +72,160 @@ class LoginActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginPage() {
-    val context = LocalContext.current
-    val email = remember { mutableStateOf("") }
-    val password = remember { mutableStateOf("") }
-    val focusManager = LocalFocusManager.current
+    Log.d("LoginActivity", "User logged. UUID: ${Firebase.auth.currentUser?.uid}")
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.bg2),
-            contentDescription = "Background",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize()
-        )
+    if (Firebase.auth.currentUser != null) {
+        Toast.makeText(LocalContext.current, "Vous êtes déjà connecté !", Toast.LENGTH_SHORT).show()
+        //Disconnect User
+        Firebase.auth.signOut()
+        //Move to login page
+        LoginPage()
+    }else{
+        val context = LocalContext.current
+        val email = remember { mutableStateOf("") }
+        val password = remember { mutableStateOf("") }
+        val focusManager = LocalFocusManager.current
 
-        Column(
-            modifier = Modifier
-                .width(300.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.icon_fond),
-                contentDescription = "App Logo",
-                modifier = Modifier
-                    .size(170.dp)
-                    .padding(bottom = 10.dp)
+                painter = painterResource(id = R.drawable.bg2),
+                contentDescription = "Background",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
             )
-            Text(
-                text = "Cass'Tongram",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    fontFamily = FontFamily(Font(R.font.weed))
-                ),
-                modifier = Modifier.padding(bottom = 20.dp),
-                color = Color.White
-            )
-            TextField(
-                value = email.value,
-                onValueChange = { email.value = it },
-                label = { Text("Adresse Mail") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .border(
-                        width = 1.dp,
-                        color = androidx.compose.ui.graphics.Color(0xFF00C974),
-                        shape = MaterialTheme.shapes.extraLarge
-                    ),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = TextFieldDefaults.textFieldColors(
-                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                )
-            )
-            TextField(
-                value = password.value,
-                onValueChange = { password.value = it },
-                label = { Text("Mot de passe") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions.Default.copy(
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        loginUser(email.value, password.value, context)
-                    }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 30.dp)
-                    .border(
-                        width = 1.dp,
-                        color = androidx.compose.ui.graphics.Color(0xFF00C974),
-                        shape = MaterialTheme.shapes.extraLarge
-                    ),
-                shape = MaterialTheme.shapes.extraLarge,
-                colors = TextFieldDefaults.textFieldColors(
-                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                ),
-            )
+
             Column(
-                modifier = Modifier,
-            ){
-                Box(
+                modifier = Modifier
+                    .width(300.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.icon_fond),
+                    contentDescription = "App Logo",
                     modifier = Modifier
+                        .size(170.dp)
                         .padding(bottom = 10.dp)
-                        .background(
-                            color = Color(0xFF00C974),
-                            shape = MaterialTheme.shapes.extraLarge
-                        )
-                ) {
-                    ClickableText(
-                        text = AnnotatedString("Se Connecter").toUpperCase(),
-                        onClick = {
-                            loginUser(email.value, password.value, context)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        style = TextStyle(textAlign = TextAlign.Center, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                    )
-                }
-                Box(
+                )
+                Text(
+                    text = "Cass'Tongram",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontFamily = FontFamily(Font(R.font.weed))
+                    ),
+                    modifier = Modifier.padding(bottom = 20.dp),
+                    color = Color.White
+                )
+                TextField(
+                    value = email.value,
+                    onValueChange = { email.value = it },
+                    label = { Text("Adresse Mail") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                    ),
                     modifier = Modifier
-                        .background(color = Color.White, shape = MaterialTheme.shapes.extraLarge)
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
                         .border(
-                            width = 2.dp,
-                            color = Color(0xFF00C974),
+                            width = 1.dp,
+                            color = androidx.compose.ui.graphics.Color(0xFF00C974),
                             shape = MaterialTheme.shapes.extraLarge
-                        )
-                ) {
-                    ClickableText(
-                        text = AnnotatedString("Créer un compte"),
-                        onClick = {
-                            val intent = Intent(context, RegisterActivity::class.java)
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 10.dp),
-                        style = TextStyle(textAlign = TextAlign.Center, color = Color(0xFF00C974), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        ),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
                     )
+                )
+                TextField(
+                    value = password.value,
+                    onValueChange = { password.value = it },
+                    label = { Text("Mot de passe") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            loginUser(email.value, password.value, context)
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 30.dp)
+                        .border(
+                            width = 1.dp,
+                            color = androidx.compose.ui.graphics.Color(0xFF00C974),
+                            shape = MaterialTheme.shapes.extraLarge
+                        ),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = TextFieldDefaults.textFieldColors(
+                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                    ),
+                )
+                Column(
+                    modifier = Modifier,
+                ){
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = 10.dp)
+                            .background(
+                                color = Color(0xFF00C974),
+                                shape = MaterialTheme.shapes.extraLarge
+                            )
+                    ) {
+                        ClickableText(
+                            text = AnnotatedString("Se Connecter").toUpperCase(),
+                            onClick = {
+                                loginUser(email.value, password.value, context)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            style = TextStyle(textAlign = TextAlign.Center, color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(color = Color.White, shape = MaterialTheme.shapes.extraLarge)
+                            .border(
+                                width = 2.dp,
+                                color = Color(0xFF00C974),
+                                shape = MaterialTheme.shapes.extraLarge
+                            )
+                    ) {
+                        ClickableText(
+                            text = AnnotatedString("Créer un compte"),
+                            onClick = {
+                                val intent = Intent(context, RegisterActivity::class.java)
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp),
+                            style = TextStyle(textAlign = TextAlign.Center, color = Color(0xFF00C974), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        )
+                    }
                 }
+                Text(
+                    text = "Design by\nCombes / Sayer / Bonnefon / De Sauvage & Daoulas",
+                    modifier = Modifier.padding(top = 20.dp),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        textAlign = TextAlign.Center,
+                    ),
+                    color = Color.White
+                )
             }
-            Text(
-                text = "Design by\nCombes / Sayer / Bonnefon / De Sauvage & Daoulas",
-                modifier = Modifier.padding(top = 20.dp),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    textAlign = TextAlign.Center,
-                ),
-                color = Color.White
-            )
         }
     }
 }
@@ -217,13 +239,30 @@ fun loginUser(email: String, password: String, context: Context) {
     val auth = Firebase.auth
     auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
         if (task.isSuccessful) {
-            Toast.makeText(context, "Vous êtes maintenant connecté !", Toast.LENGTH_SHORT).show()
-            // TODO: Redirect to HomeActivity
+            // Récupération de l'ID de l'utilisateur connecté
+            val userId = auth.currentUser?.uid ?: return@addOnCompleteListener
+            val dbRef = Firebase.database.reference.child("Users").child(userId)
+            dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    val profilePictureUrl = snapshot.child("profilePicture").value.toString()
+                    Log.d("LoginActivity", "User logged. UUID: $userId, picture : $profilePictureUrl")
+                    val intent = Intent(context, MainActivity::class.java).apply {
+                        putExtra("profilePictureUrl", profilePictureUrl)
+                    }
+                    context.startActivity(intent)
+                    (context as Activity).finish() // Ferme LoginActivity après la redirection
+                }
+
+                override fun onCancelled(error: DatabaseError) {
+                    Toast.makeText(context, "Erreur lors de la récupération des données utilisateur.", Toast.LENGTH_SHORT).show()
+                }
+            })
         } else {
             Toast.makeText(context, "Erreur lors de la connexion : ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable

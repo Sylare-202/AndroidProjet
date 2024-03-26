@@ -3,6 +3,7 @@
 package fr.isen.combes.androidprojet
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -58,14 +60,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberImagePainter
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -91,9 +94,11 @@ data class Comment(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val profilePictureUrl = intent.getStringExtra("profilePictureUrl") ?: ""
+        Log.v("MainActivity", "Profile picture URL: $profilePictureUrl")
         setContent {
             AndroidProjetTheme {
-                MyApp()
+                MyApp(profilePictureUrl = profilePictureUrl)
             }
         }
     }
@@ -101,7 +106,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun MyApp() {
+fun MyApp(profilePictureUrl: String) {
     val coroutineScope = rememberCoroutineScope()
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
@@ -136,15 +141,15 @@ fun MyApp() {
         },
         sheetPeekHeight = 0.dp
     ) {
-        MainScreen(comments = comments, onCommentClick = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() } })
+        MainScreen(comments = comments, onCommentClick = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() } }, profilePictureUrl = profilePictureUrl)
     }
 }
 
 @Composable
-fun MainScreen(comments: List<Comment>, onCommentClick: () -> Unit) {
+fun MainScreen(comments: List<Comment>, onCommentClick: () -> Unit, profilePictureUrl: String?) {
     Scaffold(
         topBar = { MyAppTopBar() },
-        bottomBar = { MyBottomAppBar() }
+        bottomBar = { MyBottomAppBar(profilePictureUrl) } // Passer l'URL de l'image de profil ici
     ) { innerPadding ->
         PostsList(posts = samplePosts(), comments = comments, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
     }
@@ -178,7 +183,7 @@ fun MyAppTopBar() {
 }
 
 @Composable
-fun MyBottomAppBar() {
+fun MyBottomAppBar(profilePictureUrl: String?) {
     val backgroundColor = Color(0xFFF7F7F7)
 
     BottomAppBar(
@@ -219,13 +224,20 @@ fun MyBottomAppBar() {
                 }
             }
             // Icône de profil
-            IconButton(onClick = { /* Handle profile icon click */ }) {
+            IconButton(onClick = { /* Gérer le clic sur l'icône de profil */ }) {
+                val imagePainter = if (!profilePictureUrl.isNullOrEmpty()) {
+                    rememberImagePainter(profilePictureUrl)
+                } else {
+                    painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                }
                 Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_background), // Utilisez votre image de profil ici
+                    painter = imagePainter,
                     contentDescription = "Profile",
                     modifier = Modifier
-                        .size(40.dp) // Augmente la taille de l'icône de profil
-                        .clip(CircleShape)
+                        .size(40.dp) // Set the size of the icon
+                        .clip(CircleShape) // Make the image circular
+                        .fillMaxSize(), // Ensure the image fills the space
+                    contentScale = ContentScale.Crop // Crop the image if necessary to fit
                 )
             }
         }
@@ -358,14 +370,6 @@ fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    AndroidProjetTheme {
-        MyApp()
     }
 }
 
