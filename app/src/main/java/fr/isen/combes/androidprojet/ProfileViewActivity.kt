@@ -20,14 +20,8 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.toUpperCase
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.DataSnapshot
@@ -105,7 +99,7 @@ fun ProfileScreen(activity: ComponentActivity, user: User) {
 
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ProfileButton(activity)
+            ProfileButton(activity, user)
             Divider(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,10 +179,16 @@ fun ProfileHeader(size: Int) {
     )
 }
 @Composable
-fun ProfileButton(activity: ComponentActivity) {
+fun ProfileButton(activity: ComponentActivity, userData: User) {
     Button(
         onClick = {
             val intent = Intent(activity, ProfileEditActivity::class.java)
+            // Pass user data as extra to the intent
+            intent.putExtra("userFirstName", userData.firstname)
+            intent.putExtra("userLastName", userData.lastname)
+            intent.putExtra("userUsername", userData.username)
+            intent.putExtra("userDescription", userData.description)
+            intent.putExtra("userEmail", userData.email)
             activity.startActivity(intent)
         },
         modifier = Modifier.fillMaxWidth()
@@ -196,6 +196,7 @@ fun ProfileButton(activity: ComponentActivity) {
         Text(text = "Edit Profile")
     }
 }
+
 
 
 @Composable

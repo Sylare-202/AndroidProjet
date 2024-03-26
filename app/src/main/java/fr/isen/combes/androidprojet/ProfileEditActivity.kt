@@ -1,9 +1,11 @@
 package fr.isen.combes.androidprojet
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,61 +24,124 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.toUpperCase
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.database
 
 class ProfileEditActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val userFirstName = intent.getStringExtra("userFirstName")
+        val userLastName = intent.getStringExtra("userLastName")
+        val userUsername = intent.getStringExtra("userUsername")
+        val userDescription = intent.getStringExtra("userDescription")
+        val userEmail = intent.getStringExtra("userEmail")
+
         setContent {
             AndroidProjetTheme {
-                ProfileEditScreen()
+                ProfileEditScreen(this@ProfileEditActivity, userFirstName, userLastName, userUsername, userDescription, userEmail)
             }
         }
     }
 }
 
 @Composable
-fun ProfileEditScreen() {
-    var name by remember { mutableStateOf("John Doe") }
-    var userName by remember { mutableStateOf("@JohnDoe") }
-    var description by remember { mutableStateOf("Developer at XYZ Corp") }
-    var email by remember { mutableStateOf("John.doe@johndoe.john") }
+fun ProfileEditScreen(
+    activity: ComponentActivity,
+    userFirstName: String?,
+    userLastName: String?,
+    userUsername: String?,
+    userDescription: String?,
+    userEmail: String?
+) {
+    var firstName by remember { mutableStateOf(userFirstName) }
+    var lastName by remember { mutableStateOf(userLastName) }
+    var userName by remember { mutableStateOf("@$userUsername") }
+    var description by remember { mutableStateOf(userDescription) }
+    var email by remember { mutableStateOf(userEmail) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ProfileEditHeader()
-            Spacer(modifier = Modifier.height(16.dp))
-            ProfilePicture()
-            Spacer(modifier = Modifier.height(16.dp))
-            EditableNameField(initialName = name) { name = it }
-            Spacer(modifier = Modifier.height(8.dp))
-            EditableUserNameField(initialUserName = userName) { userName = it }
-            Spacer(modifier = Modifier.height(16.dp))
-            EditableDesciptionField(initialDescription = description) { description = it }
-            Spacer(modifier = Modifier.height(16.dp))
-            EditableEmailField(initialEmail = email) { email = it }
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    println("Name: $name")
-                    println("Username: $userName")
-                    println("Description: $description")
-                    println("Email: $email")
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = "Save Changes")
+            item {
+                ProfileEditHeader()
+                Spacer(modifier = Modifier.height(16.dp))
+                ProfilePicture()
+                Spacer(modifier = Modifier.height(16.dp))
+                firstName?.let { EditableFirstNameField(initialName = it) { firstName = it } }
+                Spacer(modifier = Modifier.height(8.dp))
+                lastName?.let { EditableLastNameField(initialName = it) { lastName = it } }
+                Spacer(modifier = Modifier.height(8.dp))
+                EditableUserNameField(initialUserName = userName) { userName = it }
+                Spacer(modifier = Modifier.height(16.dp))
+                description?.let { EditableDesciptionField(initialDescription = it) { description = it } }
+                Spacer(modifier = Modifier.height(16.dp))
+                email?.let { EditableEmailField(initialEmail = it) { email = it } }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        println("First Name: $firstName")
+                        println("Last Name: $lastName")
+                        println("Username: $userName")
+                        println("Description: $description")
+                        println("Email: $email")
+                        updateUserInFirebase(
+                            userId = Firebase.auth.currentUser?.uid ?: "",
+                            firstName = firstName ?: "",
+                            lastName = lastName ?: "",
+                            username = userName ?: "",
+                            description = description ?: "",
+                            email = email ?: ""
+                        )
+                        val intent = Intent(activity, ProfileViewActivity::class.java)
+                        activity.startActivity(intent)
+
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = "Save Changes")
+                }
             }
         }
     }
+}
+
+fun updateUserInFirebase(
+    userId: String,
+    firstName: String,
+    lastName: String,
+    username: String,
+    description: String,
+    email: String
+) {
+    val database: DatabaseReference = Firebase.database.reference
+    val userRef = database.child("Users").child(userId)
+
+    val userData = mapOf(
+        "firstname" to firstName,
+        "lastname" to lastName,
+        "username" to username,
+        "description" to description,
+        "email" to email
+        // Add other fields as needed
+    )
+
+    userRef.updateChildren(userData)
+        .addOnSuccessListener {
+            println("User data updated successfully")
+        }
+        .addOnFailureListener { e ->
+            println("Error updating user data: $e")
+        }
 }
 
 
@@ -90,13 +155,13 @@ fun ProfilePicture() {
 }
 
 @Composable
-fun EditableNameField(initialName: String, onNameChange: (String) -> Unit) {
+fun EditableFirstNameField(initialName: String, onNameChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
     ) {
         Text(
-            text = "Name",
+            text = "First Name",
             style = MaterialTheme.typography.bodySmall
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -107,7 +172,34 @@ fun EditableNameField(initialName: String, onNameChange: (String) -> Unit) {
             singleLine = true,
             placeholder = {
                 Text(
-                    text = "Enter your name",
+                    text = "Enter your first name",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        )
+    }
+}
+
+@Composable
+fun EditableLastNameField(initialName: String, onNameChange: (String) -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = "Last Name",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        TextField(
+            value = initialName,
+            onValueChange = { onNameChange(it) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = {
+                Text(
+                    text = "Enter your last name",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
