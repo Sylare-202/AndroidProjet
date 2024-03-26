@@ -253,7 +253,11 @@ fun RegisterPage() {
             )
             TextField(
                 value = username.value,
-                onValueChange = { username.value = it },
+                onValueChange = { newValue ->
+                    if (!newValue.contains("@")) {
+                        username.value = newValue
+                    }
+                },
                 label = { Text("Pseudo") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions.Default.copy(
