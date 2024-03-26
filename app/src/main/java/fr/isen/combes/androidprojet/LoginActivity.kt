@@ -65,10 +65,8 @@ fun LoginPage() {
 
     if (Firebase.auth.currentUser != null) {
         Toast.makeText(LocalContext.current, "Vous êtes déjà connecté !", Toast.LENGTH_SHORT).show()
-        //Disconnect User
-        Firebase.auth.signOut()
-        //Move to login page
-        LoginPage()
+        val intent = Intent(LocalContext.current, PostActivity::class.java)
+        LocalContext.current.startActivity(intent)
     }else{
         val context = LocalContext.current
         val email = remember { mutableStateOf("") }
@@ -233,7 +231,8 @@ fun loginUser(email: String, password: String, context: Context) {
             //Log User User
             Log.d("LoginActivity", "User logged. UUID: ${auth.currentUser?.uid}")
 
-            // TODO: Redirect to HomeActivity
+            val intent = Intent(context, PostActivity::class.java)
+            context.startActivity(intent)
         } else {
             Toast.makeText(context, "Erreur lors de la connexion : ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
         }
