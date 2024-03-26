@@ -73,13 +73,29 @@ class LoginActivity : ComponentActivity() {
 @Composable
 fun LoginPage() {
     Log.d("LoginActivity", "User logged. UUID: ${Firebase.auth.currentUser?.uid}")
+    val context = LocalContext.current
 
     if (Firebase.auth.currentUser != null) {
-        Toast.makeText(LocalContext.current, "Vous êtes déjà connecté !", Toast.LENGTH_SHORT).show()
-        //Disconnect User
-        Firebase.auth.signOut()
-        //Move to login page
-        LoginPage()
+        // L'utilisateur est déjà connecté, récupérer l'ID de l'utilisateur
+        val userId = Firebase.auth.currentUser?.uid ?: ""
+        // Récupération de l'URL de la photo de profil depuis Firebase
+        val dbRef = Firebase.database.reference.child("Users").child(userId)
+        dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                // L'URL de la photo de profil est récupérée avec succès
+                val profilePictureUrl = snapshot.child("profilePicture").value.toString()
+                // Redirection vers MainActivity avec l'URL de la photo de profil
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    putExtra("profilePictureUrl", profilePictureUrl)
+                }
+                context.startActivity(intent)
+                (context as Activity).finish() // Ferme LoginActivity après la redirection
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Toast.makeText(context, "Erreur lors de la récupération des données utilisateur.", Toast.LENGTH_SHORT).show()
+            }
+        })
     }else{
         val context = LocalContext.current
         val email = remember { mutableStateOf("") }
@@ -239,24 +255,10 @@ fun loginUser(email: String, password: String, context: Context) {
     val auth = Firebase.auth
     auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
         if (task.isSuccessful) {
-            // Récupération de l'ID de l'utilisateur connecté
-            val userId = auth.currentUser?.uid ?: return@addOnCompleteListener
-            val dbRef = Firebase.database.reference.child("Users").child(userId)
-            dbRef.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    val profilePictureUrl = snapshot.child("profilePicture").value.toString()
-                    Log.d("LoginActivity", "User logged. UUID: $userId, picture : $profilePictureUrl")
-                    val intent = Intent(context, MainActivity::class.java).apply {
-                        putExtra("profilePictureUrl", profilePictureUrl)
-                    }
-                    context.startActivity(intent)
-                    (context as Activity).finish() // Ferme LoginActivity après la redirection
-                }
-
-                override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(context, "Erreur lors de la récupération des données utilisateur.", Toast.LENGTH_SHORT).show()
-                }
-            })
+            Toast.makeText(context, "Vous êtes maintenant connecté !", Toast.LENGTH_SHORT).show()
+            // TODO: Redirect to HomeActivity
+            val indent = Intent(context, MainActivity::class.java)
+            context.startActivity(indent)
         } else {
             Toast.makeText(context, "Erreur lors de la connexion : ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()
         }

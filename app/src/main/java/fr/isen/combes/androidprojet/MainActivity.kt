@@ -54,7 +54,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +71,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberImagePainter
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -84,7 +85,8 @@ data class Post(
     val imageUrl: String = "",
     val publicationDate: Long = 0L,
     var likesCount: Int = 0,
-    var isLiked: Boolean = false
+    var isLiked: Boolean = false,
+    val comments: MutableList<Comment> = mutableListOf() // Ajoutez cette ligne
 )
 
 data class Comment(
@@ -97,11 +99,27 @@ data class Comment(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val profilePictureUrl = intent.getStringExtra("profilePictureUrl") ?: ""
-        Log.v("MainActivity", "Profile picture URL: $profilePictureUrl")
-        setContent {
-            AndroidProjetTheme {
-                MyApp(profilePictureUrl = profilePictureUrl)
+
+        val userId = Firebase.auth.currentUser?.uid
+        if (userId == null) {
+            // Rediriger vers LoginActivity si aucun utilisateur n'est connecté.
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
+        // Récupération des données utilisateur de Firebase.
+        fetchUserDataFromFirebase(userId) { user ->
+            if (user != null) {
+                // Configuration de l'UI avec les données utilisateur.
+                setContent {
+                    AndroidProjetTheme {
+                        MyApp(user = user)
+                    }
+                }
+            } else {
+                Log.e("MainActivity", "Erreur lors de la récupération des données utilisateur.")
+                // Gérer l'erreur.
             }
         }
     }
@@ -109,54 +127,50 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun MyApp(profilePictureUrl: String) {
+fun MyApp(user: User) {
     val coroutineScope = rememberCoroutineScope()
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
     )
-    val comments = remember { mutableStateListOf<Comment>(
-        Comment(
-            profileImageId = R.drawable.ic_launcher_background,
-            username = "Utilisateur1",
-            timestamp = System.currentTimeMillis() - 3600000,
-            commentText = "Super photo !"
-        ),
-        Comment(
-            profileImageId = R.drawable.ic_launcher_background,
-            username = "Utilisateur2",
-            timestamp = System.currentTimeMillis() - 7200000,
-            commentText = "J'adore cet endroit."
-        )
-    )}
+    val selectedPost = remember { mutableStateOf<Post?>(null) }
 
     BottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
         sheetContent = {
-            SheetContent(comments = comments) { commentText ->
-                val newComment = Comment(
-                    profileImageId = R.drawable.ic_launcher_background, // Utiliser un id de ressource approprié
-                    username = "Moi",
-                    timestamp = System.currentTimeMillis(),
-                    commentText = commentText
-                )
-                comments.add(newComment)
-            }
+            // Utilisez le post sélectionné pour afficher les commentaires
+            selectedPost.value?.let { post ->
+                SheetContent(post = post, user = user) { commentText ->
+                    val newComment = Comment(
+                        profileImageId = R.drawable.ic_launcher_background,
+                        username = "Moi",
+                        timestamp = System.currentTimeMillis(),
+                        commentText = commentText
+                    )
+                    post.comments.add(newComment)
+                    // Votre logique pour gérer le commentaire ajouté, si nécessaire
+                }
+            } ?: Text("Pas de post sélectionné") // Fallback si aucun post n'est sélectionné
         },
         sheetPeekHeight = 0.dp
     ) {
-        MainScreen(comments = comments, onCommentClick = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() } }, profilePictureUrl = profilePictureUrl)
+        MainScreen(onCommentClick = { post ->
+            selectedPost.value = post
+            coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.expand() }
+        }, profilePictureUrl = user.profilePicture)
     }
 }
 
+
+
 @Composable
-fun MainScreen(comments: List<Comment>, onCommentClick: () -> Unit, profilePictureUrl: String?) {
+fun MainScreen(onCommentClick: (Post) -> Unit, profilePictureUrl: String?) {
     val context = LocalContext.current // Récupérer le contexte local
 
     Scaffold(
         topBar = { MyAppTopBar() },
         bottomBar = { MyBottomAppBar(profilePictureUrl, context) }
     ) { innerPadding ->
-        PostsList(posts = samplePosts(), comments = comments, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
+        PostsList(posts = samplePosts(), onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
     }
 }
 
@@ -259,29 +273,22 @@ fun samplePosts() = listOf(
         title = "Premier post",
         description = "Ceci est le premier post de notre flux d'actualités.",
         imageUrl = "",
-        publicationDate = System.currentTimeMillis() - 100000
-    ),
-    Post(
-        title = "Deuxième post",
-        description = "Voici un autre exemple de post avec une description plus longue pour voir comment il s'affiche.",
-        imageUrl = "",
-        publicationDate = System.currentTimeMillis() - 50000
+        publicationDate = System.currentTimeMillis() - 100000,
+        comments = mutableListOf() // Initialiser avec une liste vide ou des commentaires préexistants
     )
 )
 
 @Composable
-fun PostsList(posts: List<Post>, comments: List<Comment>, onCommentClick: () -> Unit, modifier: Modifier = Modifier) {
-    LazyColumn(modifier = modifier) {
+fun PostsList(posts: List<Post>, onCommentClick: (Post) -> Unit, modifier: Modifier = Modifier) {
+    LazyColumn {
         items(posts) { post ->
-            // Ici, on passe la liste complète des commentaires à chaque PostCard
-            // Dans une application réelle, vous voudriez filtrer les commentaires spécifiques à ce post
-            PostCard(post = post, comments = comments, onCommentClick = onCommentClick)
+            PostCard(post = post, onCommentClick = onCommentClick)
         }
     }
 }
 
 @Composable
-fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
+fun PostCard(post: Post, onCommentClick: (Post) -> Unit) {
     val initialLikes = 120
     val likesText = remember { mutableStateOf("120 J'aime") }
     val isLiked = remember { mutableStateOf(false) }
@@ -341,7 +348,7 @@ fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
                     )
                 }
                 // Icône de bulle de texte
-                IconButton(onClick = onCommentClick) {
+                IconButton(onClick = { onCommentClick(post) }) {
                     Icon(
                         Icons.Filled.MailOutline,
                         contentDescription = "Comment",
@@ -364,10 +371,10 @@ fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Voir les ${comments.size} commentaires",
+                text = "Voir les ${post.comments.size} commentaires",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable { onCommentClick() }
+                modifier = Modifier.clickable { onCommentClick(post) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -383,14 +390,14 @@ fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
 }
 
 @Composable
-fun SheetContent(comments: List<Comment>, onAddComment: (String) -> Unit) {
+fun SheetContent(post: Post, user: User, onAddComment: (String) -> Unit) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-    val sheetHeight = screenHeight * 0.5f // Limite à 50% de la hauteur de l'écran
+    val sheetHeight = screenHeight * 0.5f
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = sheetHeight) // Limite la hauteur de la Column
+            .heightIn(max = sheetHeight)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -402,64 +409,84 @@ fun SheetContent(comments: List<Comment>, onAddComment: (String) -> Unit) {
                 .background(color = Color.LightGray, shape = RoundedCornerShape(50))
         )
         Spacer(modifier = Modifier.height(16.dp))
-
         Text(
             "Commentaires",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
         )
-
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-        // Seuls les commentaires sont scrollables
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
-            items(comments) { comment ->
+            items(post.comments) { comment ->
                 CommentItem(comment = comment)
                 Divider()
             }
         }
 
-        NewCommentSection(onAddComment = onAddComment)
+        NewCommentSection(user, post) { commentText ->
+            val newComment = Comment(
+                profileImageId = R.drawable.ic_launcher_background, // Remplacer par l'ID réel de l'image de profil
+                username = user.username, // Supposons que l'objet User contient le nom d'utilisateur
+                timestamp = System.currentTimeMillis(),
+                commentText = commentText
+            )
+            post.comments.add(newComment)
+            onAddComment(commentText) // Vous pouvez laisser cette fonction vide si rien de spécifique n'est à faire
+        }
     }
 }
 
 @Composable
-fun NewCommentSection(onAddComment: (String) -> Unit) {
+fun NewCommentSection(user: User, post: Post, onAddComment: (String) -> Unit) {
     val (commentText, setCommentText) = remember { mutableStateOf("") }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // Votre photo de profil
         Image(
-            painter = painterResource(id = R.drawable.ic_launcher_background), // Utilisez l'ID de votre propre ressource
+            painter = rememberImagePainter(data = user.profilePicture),
             contentDescription = "Votre photo de profil",
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
+                .fillMaxSize(),
+            contentScale = ContentScale.Crop
         )
         Spacer(modifier = Modifier.width(8.dp))
-        // Champ de texte pour ajouter un commentaire
+
         TextField(
             value = commentText,
             onValueChange = setCommentText,
             placeholder = { Text("Ajoutez un commentaire...") },
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
             textStyle = TextStyle(color = Color.Black),
             colors = TextFieldDefaults.textFieldColors(backgroundColor = Color.Transparent)
         )
-        // Bouton pour envoyer le commentaire
+
         Button(onClick = {
-            if(commentText.isNotBlank()) {
+            if (commentText.isNotBlank()) {
+                // Assurez-vous que `User` contient `profilePictureId` ou similaire pour l'image de profil
+                // Dans cet exemple, `R.drawable.ic_launcher_background` est utilisé comme placeholder
+                val profileImageId = R.drawable.ic_launcher_background // Remplacez par la logique d'obtention de l'ID d'image réelle
+                val newComment = Comment(
+                    profileImageId = profileImageId,
+                    username = user.username,
+                    timestamp = System.currentTimeMillis(),
+                    commentText = commentText
+                )
+                post.comments.add(newComment)
                 onAddComment(commentText)
-                setCommentText("") // Réinitialiser le champ de texte après l'envoi
+                setCommentText("")
+                // Notez que vous pourriez avoir besoin de notifier l'UI d'un changement dans la liste des commentaires.
             }
         }) {
             Text("Envoyer")
         }
     }
 }
+
+
 @Composable
 fun CommentItem(comment: Comment) {
     Row(
