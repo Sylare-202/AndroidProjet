@@ -1,48 +1,34 @@
 package fr.isen.combes.androidprojet
 
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
+
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.clickable
+import android.content.Intent
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import coil.compose.rememberImagePainter
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
-import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 
 data class User(
     val description: String = "",
@@ -107,14 +93,14 @@ fun ProfileScreen(activity: ComponentActivity, user: User) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                ProfileHeader(size = 120)
+                ProfileHeader(size = 120, user = user)
                 Spacer(modifier = Modifier.width(16.dp))
                 ProfileInfo(12, 12, 12, user.firstname, user.lastname, user.username, user.description)
                 Spacer(modifier = Modifier.height(16.dp))
 
             }
             Spacer(modifier = Modifier.height(16.dp))
-            ProfileButton(activity)
+            ProfileButton(activity, user)
             Divider(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,9 +168,9 @@ fun PublicationInformation(publication: Int, following: Int, follower: Int) {
 
 
 @Composable
-fun ProfileHeader(size: Int) {
+fun ProfileHeader(size: Int, user: User) {
     Image(
-        painter = painterResource(id = R.drawable.ic_launcher_foreground),
+        painter = rememberImagePainter(user.profilePicture.toString()),
         contentDescription = "Profile Image",
         modifier = Modifier
             .size(size.dp)
@@ -193,11 +179,20 @@ fun ProfileHeader(size: Int) {
         contentScale = ContentScale.Crop,
     )
 }
+
 @Composable
-fun ProfileButton(activity: ComponentActivity) {
+fun ProfileButton(activity: ComponentActivity, userData: User) {
     Button(
         onClick = {
             val intent = Intent(activity, ProfileEditActivity::class.java)
+            // Pass user data as extra to the intent
+            intent.putExtra("userFirstName", userData.firstname)
+            intent.putExtra("userLastName", userData.lastname)
+            intent.putExtra("userUsername", userData.username)
+            intent.putExtra("userDescription", userData.description)
+            intent.putExtra("userEmail", userData.email)
+            intent.putExtra("imageUri", userData.profilePicture)
+
             activity.startActivity(intent)
         },
         modifier = Modifier.fillMaxWidth()
@@ -205,6 +200,7 @@ fun ProfileButton(activity: ComponentActivity) {
         Text(text = "Edit Profile")
     }
 }
+
 
 
 @Composable
