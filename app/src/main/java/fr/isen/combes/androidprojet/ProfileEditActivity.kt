@@ -113,7 +113,7 @@ fun ProfileEditScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 email?.let { EditableEmailField(initialEmail = it) { email = it } }
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 ProfileButton(
                     activity = activity,
                     text = "Save Changes",

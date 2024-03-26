@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -49,6 +51,16 @@ data class User(
     constructor() : this("", "", "", "", "", "", "")
 }
 
+data class Post(
+    val image: String = "",
+    val date: String = "",
+    val description: String = "",
+    val location: String = "",
+    val like: Int = 0
+) {
+    constructor() : this("", "", "", "", 0)
+}
+
 class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,12 +81,7 @@ class ProfileViewActivity : ComponentActivity() {
                 override fun onDataChange(dataSnapshot: DataSnapshot) {
                     val user = dataSnapshot.getValue(User::class.java)
                     user?.let {
-                        setContent {
-                            AndroidProjetTheme {
-                                println("User data: $user")
-                                ProfileScreen(this@ProfileViewActivity, user)
-                            }
-                        }
+                        fetchUserPosts(user)
                     }
                 }
 
@@ -84,58 +91,108 @@ class ProfileViewActivity : ComponentActivity() {
             })
         }
     }
+
+    private fun fetchUserPosts(user: User) {
+        val database = FirebaseDatabase.getInstance()
+        val usersRef = database.getReference("Users")
+        usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                dataSnapshot.children.forEach { userSnapshot ->
+                    val userData = userSnapshot.getValue(User::class.java)
+                    userData?.let {
+                        if (userData == user) {
+                            val userId = userSnapshot.key // Retrieve the UID
+                            userId?.let { uid ->
+                                // Use the UID to fetch posts
+                                val postsRef = database.getReference("Post").orderByChild("uid").equalTo(uid)
+                                postsRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                                    override fun onDataChange(postsSnapshot: DataSnapshot) {
+                                        val posts = mutableListOf<Post>()
+                                        postsSnapshot.children.forEach { postSnapshot ->
+                                            val post = postSnapshot.getValue(Post::class.java)
+                                            post?.let {
+                                                posts.add(post)
+                                            }
+                                        }
+                                        setContent {
+                                            AndroidProjetTheme {
+                                                println("User data: $user")
+                                                ProfileScreen(this@ProfileViewActivity, user, posts)
+                                            }
+                                        }
+                                    }
+
+                                    override fun onCancelled(databaseError: DatabaseError) {
+                                        println("Error fetching user posts: ${databaseError.message}")
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {
+                println("Error fetching users data: ${databaseError.message}")
+            }
+        })
+    }
 }
 
+
 @Composable
-fun ProfileScreen(activity: ComponentActivity, user: User) {
+fun ProfileScreen(activity: ComponentActivity, user: User, posts: List<Post>) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
-            IconButton(
-                onClick = {
-                    Firebase.auth.signOut()
-                    val intent = Intent(activity, LoginActivity::class.java)
-                    activity.startActivity(intent)
-                },
-                modifier = Modifier
-                    .padding(top = 0.dp, end = 0.dp)
-                    .align(Alignment.End)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Close,
-                    contentDescription = "Logout",
-                    tint = Color.Gray
+            item {
+                IconButton(
+                    onClick = {
+                        Firebase.auth.signOut()
+                        val intent = Intent(activity, LoginActivity::class.java)
+                        activity.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .padding(top = 0.dp, end = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Logout",
+                        tint = Color.Gray
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ProfileHeader(size = 120, user = user)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    val numberOfPosts = posts.size
+                    ProfileInfo(numberOfPosts, 12, 12, user.firstname, user.lastname, user.username, user.description)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                ProfileButton(activity, user, "edit profile")
+                Divider(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    color = Color.Gray,
+                    thickness = 1.dp
                 )
             }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                ProfileHeader(size = 120, user = user)
-                Spacer(modifier = Modifier.width(16.dp))
-                ProfileInfo(12, 12, 12, user.firstname, user.lastname, user.username, user.description)
-                Spacer(modifier = Modifier.height(16.dp))
-
+            item {
+                PostGrid(posts = posts)
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            ProfileButton(activity, user, "edit profile")
-            Divider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                color = Color.Gray,
-                thickness = 1.dp
-            )
-            PostGrid()
         }
     }
 }
@@ -257,22 +314,24 @@ fun ProfileButton(activity: ComponentActivity, userData: User, text: String) {
 }
 
 @Composable
-fun PostGrid(userNumberPost: Int = 9) {
-    val postsPerRow = 3
+fun PostGrid(posts: List<Post>) {
+    val placeholdersNeeded = if (posts.size % 3 == 0) 0 else 3 - (posts.size % 3)
 
-    val rowCount = (userNumberPost + postsPerRow - 1) / postsPerRow
+    val updatedPosts = posts + List(placeholdersNeeded) { Post() }
+
+    val postsPerRow = 3
+    val rowCount = (updatedPosts.size + postsPerRow - 1) / postsPerRow
 
     Column {
         repeat(rowCount) { rowIndex ->
+            println("Row Index: $rowIndex")
             Row(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 repeat(postsPerRow) { columnIndex ->
-                    val postIndex = rowIndex * postsPerRow + columnIndex + 1
-                    if (postIndex <= userNumberPost) {
-                        PostImage(postIndex)
-                    }
+                    val postIndex = rowIndex * postsPerRow + columnIndex
+                    PostImage(updatedPosts.getOrNull(postIndex))
                 }
             }
             Spacer(modifier = Modifier.height(1.dp))
@@ -281,31 +340,24 @@ fun PostGrid(userNumberPost: Int = 9) {
 }
 
 @Composable
-fun PostImage(postIndex: Int) {
-    if (postIndex > 5) {
-        Box (
+fun PostImage(post: Post?) {
+    if (post != null) {
+        Image(
+            painter = rememberImagePainter(post.image),
+            contentDescription = "Post Image",
             modifier = Modifier
                 .size(125.dp)
                 .padding(1.dp)
-                .clip(MaterialTheme.shapes.medium)
+                .clickable { /* TODO: Redirect to the post (anthony part) */ }
+                .clip(MaterialTheme.shapes.small),
+            contentScale = ContentScale.Crop
         )
-        return
+    } else {
+        Box(
+            modifier = Modifier
+                .size(125.dp)
+                .padding(1.dp)
+                .background(Color.Transparent)
+        )
     }
-    val resourceName = "post$postIndex"
-    println("Resource Name: $resourceName") // Add this line to print the resource name
-    val imageResource = getResourceId(resourceName, "drawable", LocalContext.current)
-
-    Image(
-        painter = painterResource(id = imageResource),
-        contentDescription = "Post Image $postIndex",
-        modifier = Modifier
-            .size(125.dp)
-            .padding(1.dp)
-            .clickable { /* TODO: Add the redirection to the specific post knowing the index (here in dev) */ },
-        contentScale = ContentScale.Crop
-    )
-}
-
-fun getResourceId(name: String, type: String, context: Context): Int {
-    return context.resources.getIdentifier(name, type, context.packageName)
 }
