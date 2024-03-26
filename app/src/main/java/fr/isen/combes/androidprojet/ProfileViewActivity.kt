@@ -14,13 +14,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 
 class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +47,21 @@ fun ProfileScreen(activity: ComponentActivity) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top
         ) {
+            IconButton(
+                onClick = {
+                    // Perform logout action here
+                    // For example, navigate to the login screen or sign out the user
+                },
+                modifier = Modifier
+                    .padding(top = 0.dp, end = 0.dp)
+                    .align(Alignment.End)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Logout",
+                    tint = Color.Gray
+                )
+            }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -75,12 +91,11 @@ fun ProfileScreen(activity: ComponentActivity) {
 fun ProfileInfo(publication: Int = 12, following: Int = 12, follower: Int = 12, firstName: String = "Aller", lastName: String = "Giroud", username: String = "meilleurequipe", description: String = "Developer at XYZ Corp") {
         Column {
             Row {
-                Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyMedium)
+                Text(text = "$firstName $lastName", style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            Spacer(modifier = Modifier.height(4.dp))
             Text(text = "@$username", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             PublicationInformation(publication, following, follower)
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = "$description", style = MaterialTheme.typography.bodyLarge)
@@ -156,7 +171,7 @@ fun ProfileButton(activity: ComponentActivity) {
 fun PostGrid(userNumberPost: Int = 9) {
     val postsPerRow = 3
 
-    // Calculate number of rows needed
+
     val rowCount = (userNumberPost + postsPerRow - 1) / postsPerRow
 
     Column {
