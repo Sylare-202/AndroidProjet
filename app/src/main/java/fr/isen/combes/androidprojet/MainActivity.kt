@@ -83,8 +83,8 @@ data class Post(
     val description: String = "",
     val imageUrl: String = "",
     val publicationDate: Long = 0L,
-    var likesCount: Int = 0, // Ajouté
-    var isLiked: Boolean = false // Ajouté
+    var likesCount: Int = 0,
+    var isLiked: Boolean = false
 )
 
 data class Comment(
@@ -132,7 +132,7 @@ fun MyApp(profilePictureUrl: String) {
     BottomSheetScaffold(
         scaffoldState = bottomSheetScaffoldState,
         sheetContent = {
-            SheetContent(onDismiss = { coroutineScope.launch { bottomSheetScaffoldState.bottomSheetState.collapse() } }, comments = comments, onAddComment = { commentText ->
+            SheetContent(comments = comments) { commentText ->
                 val newComment = Comment(
                     profileImageId = R.drawable.ic_launcher_background, // Utiliser un id de ressource approprié
                     username = "Moi",
@@ -140,7 +140,7 @@ fun MyApp(profilePictureUrl: String) {
                     commentText = commentText
                 )
                 comments.add(newComment)
-            })
+            }
         },
         sheetPeekHeight = 0.dp
     ) {
@@ -383,8 +383,7 @@ fun PostCard(post: Post, comments: List<Comment>, onCommentClick: () -> Unit) {
 }
 
 @Composable
-fun SheetContent(onDismiss: () -> Unit, comments: List<Comment>, onAddComment: (String) -> Unit) {
-    // Hauteur maximale de la BottomSheet à 50% de la hauteur de l'écran
+fun SheetContent(comments: List<Comment>, onAddComment: (String) -> Unit) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val sheetHeight = screenHeight * 0.5f // Limite à 50% de la hauteur de l'écran
 

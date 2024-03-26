@@ -134,14 +134,14 @@ fun LoginPage() {
                         .padding(vertical = 8.dp)
                         .border(
                             width = 1.dp,
-                            color = androidx.compose.ui.graphics.Color(0xFF00C974),
+                            color = Color(0xFF00C974),
                             shape = MaterialTheme.shapes.extraLarge
                         ),
                     shape = MaterialTheme.shapes.extraLarge,
                     colors = TextFieldDefaults.textFieldColors(
-                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
                     )
                 )
                 TextField(
@@ -163,14 +163,14 @@ fun LoginPage() {
                         .padding(bottom = 30.dp)
                         .border(
                             width = 1.dp,
-                            color = androidx.compose.ui.graphics.Color(0xFF00C974),
+                            color = Color(0xFF00C974),
                             shape = MaterialTheme.shapes.extraLarge
                         ),
                     shape = MaterialTheme.shapes.extraLarge,
                     colors = TextFieldDefaults.textFieldColors(
-                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
                     ),
                 )
                 Column(
