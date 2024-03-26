@@ -44,17 +44,37 @@ data class User(
 
 class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
-        fetchUserDataFromFirebase(Firebase.auth.currentUser?.uid ?: "") { user ->
-            if (user != null) {
-                setContent {
-                    AndroidProjetTheme {
-                        println("User data: $user")
-                        ProfileScreen(this@ProfileViewActivity, user)
+        fetchUserData()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        fetchUserData()
+    }
+
+    private fun fetchUserData() {
+        val userId = Firebase.auth.currentUser?.uid
+        if (userId != null) {
+            val database = FirebaseDatabase.getInstance()
+            val usersRef = database.getReference("Users/$userId")
+            usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(dataSnapshot: DataSnapshot) {
+                    val user = dataSnapshot.getValue(User::class.java)
+                    user?.let {
+                        setContent {
+                            AndroidProjetTheme {
+                                println("User data: $user")
+                                ProfileScreen(this@ProfileViewActivity, user)
+                            }
+                        }
                     }
                 }
-            }
+
+                override fun onCancelled(databaseError: DatabaseError) {
+                    println("Error fetching user data: ${databaseError.message}")
+                }
+            })
         }
     }
 }
@@ -255,7 +275,7 @@ fun PostImage(postIndex: Int) {
 }
 
 
-fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit) {
+/*fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit) {
     val database = FirebaseDatabase.getInstance()
     val usersRef = database.getReference("Users/$userId")
 
@@ -271,7 +291,7 @@ fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit
             println("Error fetching user data: ${databaseError.message}")
         }
     })
-}
+}*/
 
 fun getResourceId(name: String, type: String, context: Context): Int {
     return context.resources.getIdentifier(name, type, context.packageName)

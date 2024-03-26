@@ -72,7 +72,7 @@ fun ProfileEditScreen(
 
     var imageUri by remember { mutableStateOf(imageUrl) }
 
-    var oldImageUri = imageUrl.toString()
+    val oldImageUri = imageUrl.toString()
     println("oldImageUri: $oldImageUri")
 
     Surface(
@@ -212,11 +212,6 @@ fun updateUserInFirebase(
     if (imageUri != null) {
         uploadProfilePicture(imageUri, userId) { profilePictureUrl ->
             val userData = mapOf(
-                "firstname" to firstName,
-                "lastname" to lastName,
-                "username" to username,
-                "description" to description,
-                "email" to email,
                 "profilePicture" to profilePictureUrl
             )
 
@@ -228,6 +223,23 @@ fun updateUserInFirebase(
                     println("Error updating user data: $e")
                 }
         }
+
+        val userData = mapOf(
+            "firstname" to firstName,
+            "lastname" to lastName,
+            "username" to username,
+            "description" to description,
+            "email" to email
+        )
+
+        userRef.updateChildren(userData)
+            .addOnSuccessListener {
+                println("User data updated successfully")
+            }
+            .addOnFailureListener { e ->
+                println("Error updating user data: $e")
+            }
+
     } else {
         val userData = mapOf(
             "firstname" to firstName,
