@@ -65,10 +65,10 @@ fun LoginPage() {
 
     if (Firebase.auth.currentUser != null) {
         Toast.makeText(LocalContext.current, "Vous êtes déjà connecté !", Toast.LENGTH_SHORT).show()
-        /*Firebase.auth.signOut()
-        LoginPage()*/
-        val intent = Intent(LocalContext.current, ProfileViewActivity::class.java)
-        LocalContext.current.startActivity(intent)
+        
+        Firebase.auth.signOut()
+        LoginPage()
+        // TODO : Rediriger vers page accueil
     } else {
         val context = LocalContext.current
         val email = remember { mutableStateOf("") }
