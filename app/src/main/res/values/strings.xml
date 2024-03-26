@@ -1,5 +1,4 @@
 <resources>
     <string name="app_name">AndroidProjet</string>
-    <string name="title_activity_main_feed">MainFeed</string>
-    <string name="title_activity_home_page">HomePage</string>
+    <string name="title_activity_login">LoginActivity</string>
 </resources>
