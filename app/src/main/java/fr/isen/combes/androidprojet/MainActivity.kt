@@ -2,6 +2,8 @@
 
 package fr.isen.combes.androidprojet
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -62,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -147,9 +150,11 @@ fun MyApp(profilePictureUrl: String) {
 
 @Composable
 fun MainScreen(comments: List<Comment>, onCommentClick: () -> Unit, profilePictureUrl: String?) {
+    val context = LocalContext.current // Récupérer le contexte local
+
     Scaffold(
         topBar = { MyAppTopBar() },
-        bottomBar = { MyBottomAppBar(profilePictureUrl) } // Passer l'URL de l'image de profil ici
+        bottomBar = { MyBottomAppBar(profilePictureUrl, context) }
     ) { innerPadding ->
         PostsList(posts = samplePosts(), comments = comments, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
     }
@@ -183,7 +188,7 @@ fun MyAppTopBar() {
 }
 
 @Composable
-fun MyBottomAppBar(profilePictureUrl: String?) {
+fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
     val backgroundColor = Color(0xFFF7F7F7)
 
     BottomAppBar(
@@ -224,7 +229,11 @@ fun MyBottomAppBar(profilePictureUrl: String?) {
                 }
             }
             // Icône de profil
-            IconButton(onClick = { /* Gérer le clic sur l'icône de profil */ }) {
+            IconButton(onClick = {
+                // Rediriger vers ProfileViewActivity
+                val intent = Intent(context, ProfileViewActivity::class.java)
+                context.startActivity(intent)
+            }) {
                 val imagePainter = if (!profilePictureUrl.isNullOrEmpty()) {
                     rememberImagePainter(profilePictureUrl)
                 } else {
