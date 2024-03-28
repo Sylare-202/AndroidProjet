@@ -75,6 +75,8 @@ import coil.compose.rememberImagePainter
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
@@ -93,13 +95,13 @@ data class Post(
     var id: String = "",
     var description: String = "",
     var imageUrl: String = "",
-    var publicationDate: String = "", // Modifié pour utiliser une String, à convertir en date si nécessaire
+    var publicationDate: String = "",
     var likesCount: Int = 0,
-    var likedBy: Set<String> = setOf(), // Nouveau champ pour garder une trace des utilisateurs qui ont aimé ce post
-    var uid: String = "", // UID de l'utilisateur qui a réalisé le Post
-    val comments: MutableList<Comment> = mutableListOf() // Liste des commentaires si vous les incluez ici
+    var likedBy: Set<String> = setOf(),
+    var uid: String = "",
+    val comments: MutableList<Comment> = mutableListOf(),
+    var commentCount: Int = 0 // Nouveau champ pour le nombre de commentaires
 )
-
 
 data class Comment(
     var profileImageId: String? = null,
@@ -148,6 +150,7 @@ fun fetchPostsFromFirebase(onPostsFetched: (List<Post>) -> Unit) {
             for (postSnapshot in snapshot.children) {
                 val post = postSnapshot.getValue(Post::class.java)?.apply {
                     // Mise à jour pour correspondre à la structure de votre Post
+                    this.commentCount = postSnapshot.child("commentCount").getValue(Int::class.java) ?: 0
                     this.id = postSnapshot.key ?: ""
                     this.uid = postSnapshot.child("uid").getValue(String::class.java) ?: ""
                     this.imageUrl = postSnapshot.child("image").getValue(String::class.java) ?: ""
@@ -189,7 +192,7 @@ fun fetchAllUsers(onUsersFetched: (Map<String, User>) -> Unit) {
     })
 }
 
-fun addCommentToFirebase(text: String, postId: String, context: Context) {
+fun addCommentToFirebase(text: String, postId: String, context: Context, onCommentAdded: (Comment) -> Unit, onCommentCountUpdated: (Int) -> Unit) {
     val uid = Firebase.auth.currentUser?.uid
     if (uid != null && postId.isNotEmpty()) {
         val databaseReference = Firebase.database.reference.child("Comments").push()
@@ -204,6 +207,29 @@ fun addCommentToFirebase(text: String, postId: String, context: Context) {
         databaseReference.setValue(comment).addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 showToast(context, "Commentaire ajouté avec succès")
+
+                // Mise à jour du nombre de commentaires dans le post
+                val postRef = Firebase.database.reference.child("Post").child(postId)
+                postRef.child("commentCount").runTransaction(object : Transaction.Handler {
+                    override fun doTransaction(mutableData: MutableData): Transaction.Result {
+                        var count = mutableData.getValue(Int::class.java) ?: 0
+                        count++
+                        mutableData.value = count
+                        return Transaction.success(mutableData)
+                    }
+
+                    override fun onComplete(
+                        databaseError: DatabaseError?,
+                        committed: Boolean,
+                        dataSnapshot: DataSnapshot?
+                    ) {
+                        if (committed) {
+                            val newCount = dataSnapshot?.getValue(Int::class.java) ?: 0
+                            onCommentCountUpdated(newCount)
+                            onCommentAdded(comment) // Appeler le callback avec le nouveau commentaire
+                        }
+                    }
+                })
             } else {
                 showToast(context, "Erreur lors de l'ajout du commentaire")
             }
@@ -265,9 +291,14 @@ fun MyApp(user: User) {
                     user = user,
                     context = context,
                     users = usersState.value,
-                    onAddComment = { commentText, postId ->
-                        // Ici, vous devez définir ce que fait onAddComment
-                        addCommentToFirebase(commentText, postId, context)
+                    onAddComment = { commentText, postId, onCommentAdded ->
+                        addCommentToFirebase(commentText, postId, context, onCommentAdded, onCommentCountUpdated = { newCount ->
+                            // Mise à jour du nombre de commentaires localement
+                            val updatedPosts = postsState.value.map { post ->
+                                if (post.id == postId) post.copy(commentCount = newCount) else post
+                            }
+                            postsState.value = updatedPosts
+                        })
                     }
                 )
             } ?: Text("Pas de post sélectionné") // Fallback si aucun post n'est sélectionné
@@ -496,7 +527,7 @@ fun PostCard(post: Post, users: Map<String, User>, onCommentClick: (Post, String
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Voir les ${post.comments.size} commentaires",
+                text = "Voir les ${post.commentCount} commentaires",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.clickable { onCommentClick(post, post.id) }
@@ -555,7 +586,7 @@ fun CommentCard(comment: Comment, users: Map<String, User>) {
 }
 
 @Composable
-fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String) -> Unit, users: Map<String, User>) {
+fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String, (Comment) -> Unit) -> Unit, users: Map<String, User>, ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val sheetHeight = screenHeight * 0.5f
 
@@ -596,7 +627,10 @@ fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String
         }
 
         NewCommentSection(user, post.id) { commentText, postId ->
-            onAddComment(commentText, postId)
+            onAddComment(commentText, postId, { newComment ->
+                // Mettre à jour la liste des commentaires localement
+                commentsState.value = commentsState.value + newComment
+            })
         }
     }
 }
