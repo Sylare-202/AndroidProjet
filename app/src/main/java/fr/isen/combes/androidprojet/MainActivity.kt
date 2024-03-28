@@ -77,9 +77,14 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.ktx.database
+import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
 import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -97,11 +102,14 @@ data class Post(
 
 
 data class Comment(
-    val profileImageId: Int,
-    val username: String,
-    val timestamp: Long,
-    val commentText: String
+    var profileImageId: String? = null,
+    var username: String = "",
+    val timestamp: Long = 0,
+    val commentText: String = "",
+    val userId: String = "",
+    val postId: String = ""
 )
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -186,15 +194,14 @@ fun addCommentToFirebase(text: String, postId: String, context: Context) {
     if (uid != null && postId.isNotEmpty()) {
         val databaseReference = Firebase.database.reference.child("Comments").push()
 
-        val commentMap = hashMapOf(
-            "id" to databaseReference.key,
-            "text" to text,
-            "postId" to postId,
-            "userId" to uid,
-            "timestamp" to System.currentTimeMillis()
+        val comment = Comment(
+            userId = uid,
+            commentText = text,
+            timestamp = System.currentTimeMillis(),
+            postId = postId
         )
 
-        databaseReference.setValue(commentMap).addOnCompleteListener { task ->
+        databaseReference.setValue(comment).addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 showToast(context, "Commentaire ajouté avec succès")
             } else {
@@ -203,6 +210,25 @@ fun addCommentToFirebase(text: String, postId: String, context: Context) {
         }
     } else {
         showToast(context, "Utilisateur non identifié")
+    }
+}
+
+fun fetchCommentsForPost(postId: String, onCommentsFetched: (List<Comment>) -> Unit) {
+    CoroutineScope(Dispatchers.IO).launch {
+        val commentsRef = Firebase.database.reference.child("Comments")
+        val snapshot = commentsRef.orderByChild("postId").equalTo(postId).get().await()
+
+        val comments = mutableListOf<Comment>()
+        snapshot.children.forEach { child ->
+            val comment = child.getValue<Comment>()
+            comment?.let { comments.add(it) }
+        }
+
+        Log.d("fetchComments", "Fetched ${comments.size} comments for post $postId")
+
+        withContext(Dispatchers.Main) {
+            onCommentsFetched(comments)
+        }
     }
 }
 
@@ -233,9 +259,17 @@ fun MyApp(user: User) {
         sheetContent = {
             // Utilisez le post sélectionné pour afficher les commentaires
             selectedPost.value?.let { post ->
-                SheetContent(post = selectedPost.value!!, user = user, context = context) { commentText, postId ->
-                    addCommentToFirebase(commentText, postId, context)
-                }
+                // Passez users à SheetContent
+                SheetContent(
+                    post = selectedPost.value!!,
+                    user = user,
+                    context = context,
+                    users = usersState.value,
+                    onAddComment = { commentText, postId ->
+                        // Ici, vous devez définir ce que fait onAddComment
+                        addCommentToFirebase(commentText, postId, context)
+                    }
+                )
             } ?: Text("Pas de post sélectionné") // Fallback si aucun post n'est sélectionné
         },
         sheetPeekHeight = 0.dp
@@ -479,9 +513,60 @@ fun PostCard(post: Post, users: Map<String, User>, onCommentClick: (Post, String
 }
 
 @Composable
-fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String) -> Unit) {
+fun CommentCard(comment: Comment, users: Map<String, User>) {
+    val user = users[comment.userId]
+
+    // Fallbacks pour le cas où l'utilisateur n'est pas trouvé
+    val username = user?.username ?: "Utilisateur inconnu"
+    val userProfilePictureUrl = user?.profilePicture ?: "" // Remplacer par une URL d'image de profil par défaut si souhaité
+
+    Row(
+        modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        // Assurez-vous que l'image de profil est correctement chargée
+        // Note : Adapter le chargement de l'image en fonction de votre cas d'usage, par exemple en utilisant coil
+        Image(
+            painter = rememberImagePainter(userProfilePictureUrl, builder = {
+                crossfade(true)
+            }),
+            contentDescription = "Profile picture",
+            modifier = Modifier.size(40.dp).clip(CircleShape).border(0.5.dp, Color.Gray, CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            Text(
+                text = username ?: "Anonyme",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(comment.timestamp)),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = comment.commentText,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String) -> Unit, users: Map<String, User>) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val sheetHeight = screenHeight * 0.5f
+
+    val commentsState = remember { mutableStateOf<List<Comment>>(emptyList()) }
+
+    // Récupération des commentaires lorsque le post est sélectionné
+    LaunchedEffect(post.id) {
+        fetchCommentsForPost(post.id) { comments ->
+            commentsState.value = comments
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -504,19 +589,14 @@ fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String
         )
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth()
-        ) {
-            items(post.comments) { comment ->
-                CommentItem(comment = comment)
-                Divider()
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            items(commentsState.value) { comment ->
+                CommentCard(comment = comment, users = users)
             }
         }
 
         NewCommentSection(user, post.id) { commentText, postId ->
             onAddComment(commentText, postId)
-            // Utilisez le contexte passé en argument
-            addCommentToFirebase(commentText, postId, context)
         }
     }
 }
@@ -559,39 +639,3 @@ fun NewCommentSection(user: User, postId: String, onAddComment: (String, String)
     }
 }
 
-
-@Composable
-fun CommentItem(comment: Comment) {
-    Row(
-        modifier = Modifier
-            .padding(vertical = 8.dp)
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        Image(
-            painter = painterResource(id = comment.profileImageId),
-            contentDescription = "Profile picture",
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .border(0.5.dp, Color.Gray, CircleShape)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
-            Text(
-                text = comment.username,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-            )
-            Text(
-                text = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(comment.timestamp)),
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = comment.commentText,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
