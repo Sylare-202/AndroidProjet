@@ -97,10 +97,10 @@ data class Post(
     var imageUrl: String = "",
     var publicationDate: String = "",
     var likesCount: Int = 0,
-    var likedBy: Set<String> = setOf(),
+    var likedBy: MutableSet<String> = mutableSetOf(),
     var uid: String = "",
     val comments: MutableList<Comment> = mutableListOf(),
-    var commentCount: Int = 0 // Nouveau champ pour le nombre de commentaires
+    var commentCount: Int = 0
 )
 
 data class Comment(
@@ -256,6 +256,38 @@ fun fetchCommentsForPost(postId: String, onCommentsFetched: (List<Comment>) -> U
             onCommentsFetched(comments)
         }
     }
+}
+
+fun toggleLikeForPost(postId: String, userId: String, context: Context) {
+    val postRef = Firebase.database.reference.child("Post").child(postId)
+
+    postRef.runTransaction(object : Transaction.Handler {
+        override fun doTransaction(mutableData: MutableData): Transaction.Result {
+            val post = mutableData.getValue(Post::class.java) ?: return Transaction.success(mutableData)
+
+            if (post.likedBy.contains(userId)) {
+                // Si l'utilisateur avait déjà aimé, on retire son like
+                post.likesCount -= 1
+                post.likedBy.remove(userId)
+            } else {
+                // Sinon, on ajoute son like
+                post.likesCount += 1
+                post.likedBy.add(userId)
+            }
+
+            // Mettre à jour la base de données
+            mutableData.value = post
+            return Transaction.success(mutableData)
+        }
+
+        override fun onComplete(databaseError: DatabaseError?, committed: Boolean, dataSnapshot: DataSnapshot?) {
+            if (committed) {
+                showToast(context, if (dataSnapshot?.getValue(Post::class.java)?.likedBy?.contains(userId) == true) "Aimé" else "Like retiré")
+            } else {
+                showToast(context, "Erreur lors de la mise à jour du like")
+            }
+        }
+    })
 }
 
 @OptIn(ExperimentalMaterialApi::class)
