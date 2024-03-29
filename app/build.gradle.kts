@@ -51,10 +51,12 @@ android {
 }
 
 dependencies {
+    implementation("io.coil-kt:coil-compose:1.4.0")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.ToxicBakery.library.bcrypt:bcrypt:+")
     implementation("com.google.firebase:firebase-database")
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
+    implementation("androidx.compose.material:material:1.1.1")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
