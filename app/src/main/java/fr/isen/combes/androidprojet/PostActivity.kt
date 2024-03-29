@@ -275,7 +275,7 @@ fun savePostData(lieu: String, description: String, image: String) {
         "description" to description,
         "image" to image,
         "date" to android.icu.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(java.util.Date()),
-        "like" to 0
+        "timestamp" to System.currentTimeMillis()
     )
 
     myRef.setValue(postMap).addOnCompleteListener { task ->

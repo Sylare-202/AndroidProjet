@@ -101,7 +101,8 @@ data class Posts(
     var likedBy: MutableList<String> = mutableListOf(),
     var uid: String = "",
     val comments: MutableList<Comment> = mutableListOf(),
-    var commentCount: Int = 0
+    var commentCount: Int = 0,
+    var timestamp: Long = 0L
 )
 
 data class Comment(
@@ -176,10 +177,12 @@ fun fetchPostsFromFirebase(onPostsFetched: (List<Posts>) -> Unit) {
                     this.description = postSnapshot.child("description").getValue(String::class.java) ?: ""
                     this.publicationDate = postSnapshot.child("date").getValue(String::class.java) ?: ""
                     this.likesCount = postSnapshot.child("like").getValue(Int::class.java) ?: 0
+                    this.timestamp = postSnapshot.child("timestamp").getValue(Long::class.java) ?: 0L
                 }
                 post?.let { posts.add(it) }
             }
-            onPostsFetched(posts)
+            val sortedPosts = posts.sortedByDescending { it.timestamp }
+            onPostsFetched(sortedPosts)
         }
 
         override fun onCancelled(error: DatabaseError) {
@@ -546,8 +549,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
         postRef.addValueEventListener(postEventListener)
     }
 
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-    val postDate = dateFormat.format(Date()) // Utilisez la bonne date du post
+    val dateFormat = post.publicationDate
 
     val user = users[post.uid] // Trouver l'utilisateur associé au post
 
@@ -564,22 +566,26 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // Header de la Card avec l'image de profil et le nom d'utilisateur
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        if (userProfilePictureUrl.isNotEmpty()) {
-                            rememberImagePainter(userProfilePictureUrl)
-                        } else {
-                            painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
-                        },
-                        contentDescription = "Profile Picture",
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
+                Box(modifier = Modifier.clickable{
+                    //TODO: Ouvrir le profil de l'utilisateur
+                }){
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            if (userProfilePictureUrl.isNotEmpty()) {
+                                rememberImagePainter(userProfilePictureUrl)
+                            } else {
+                                painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                            },
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -645,7 +651,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Publié le $postDate",
+                    text = "Publié le $dateFormat",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -699,7 +705,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
                         Icon(
                             imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (isLiked.value) Color.Magenta else Color.Black
+                            tint = if (isLiked.value) Color.Red else Color.Black
                         )
                     }
                     // Icône de bulle de texte
@@ -734,7 +740,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Publié le $postDate",
+                    text = "Publié le $dateFormat",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall
                 )
