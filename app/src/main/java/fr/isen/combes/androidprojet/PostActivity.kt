@@ -212,14 +212,13 @@ fun PostPage() {
                     ClickableText(
                         text = AnnotatedString("Valider").toUpperCase(),
                         onClick = {
-                            uploadPost(
-                                lieu.value,
-                                description.value,
-                                imageUri,
-                                context
-                            )
-                            val indent = Intent(context, FeedActivity::class.java)
-                            context.startActivity(indent)
+                            if (isFormValid(description.value, imageUri)) {
+                                uploadPost(lieu.value, description.value, imageUri, context)
+                                val indent = Intent(context, FeedActivity::class.java)
+                                context.startActivity(indent)
+                            } else {
+                                showToast(context, "Veuillez ajouter une description si aucune image n'est sélectionnée.")
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -255,12 +254,19 @@ fun uploadPost(
     if(imageUri != null){
         uploadProfilePicture(imageUri, current) { image ->
             savePostData(lieu, description, image)
-            showToast(current,"Image Upload !")
+            showToast(current,"Image téléchargée avec succès !")
+
+            val intent = Intent(current, FeedActivity::class.java)
+            current.startActivity(intent)
+
             (current as? Activity)?.finish()
         }
-    }else{
+    } else {
         savePostData(lieu, description, "")
-        showToast(current,"Aucune Image Upload")
+
+        val intent = Intent(current, FeedActivity::class.java)
+        current.startActivity(intent)
+
         (current as? Activity)?.finish()
     }
 }
@@ -275,7 +281,7 @@ fun savePostData(lieu: String, description: String, image: String) {
         "description" to description,
         "image" to image,
         "date" to android.icu.text.SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(java.util.Date()),
-        "like" to 0
+        "timestamp" to System.currentTimeMillis()
     )
 
     myRef.setValue(postMap).addOnCompleteListener { task ->
@@ -285,4 +291,10 @@ fun savePostData(lieu: String, description: String, image: String) {
             Log.w("FirebaseDatabase", "Error saving user data", task.exception)
         }
     }
+}
+
+fun isFormValid(description: String, imageUri: Uri?): Boolean {
+    if (imageUri != null) return true
+
+    return description.isNotEmpty()
 }

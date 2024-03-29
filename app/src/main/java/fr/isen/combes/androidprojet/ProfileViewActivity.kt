@@ -674,8 +674,7 @@ fun PostImage(post: Post?, activity: ComponentActivity) {
                 .size(125.dp)
                 .padding(1.dp)
                 .clickable {
-                    val intent = Intent(activity, FeedActivity::class.java)
-                    activity.startActivity(intent)
+                    activity.finish()
                 }
                 .clip(MaterialTheme.shapes.small),
             contentScale = ContentScale.Crop
