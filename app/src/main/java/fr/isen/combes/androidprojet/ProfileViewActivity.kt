@@ -235,8 +235,8 @@ fun ProfileScreen(activity: ComponentActivity, user: User, posts: List<Post>) {
 
                         ProfileInfo(
                             numberOfPosts,
-                            followingCount,
                             followerCount,
+                            followingCount,
                             user.firstname,
                             user.lastname,
                             user.username,
