@@ -20,6 +20,7 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -117,6 +118,7 @@ class ProfileViewActivity : ComponentActivity() {
                                         setContent {
                                             AndroidProjetTheme {
                                                 println("User data: $user")
+                                                Log.e("User data", "NEW imageURI: ${user.profilePicture}")
                                                 ProfileScreen(this@ProfileViewActivity, user, posts)
                                             }
                                         }

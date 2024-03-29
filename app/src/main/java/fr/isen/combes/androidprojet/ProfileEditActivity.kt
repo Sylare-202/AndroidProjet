@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -52,10 +53,19 @@ class ProfileEditActivity : ComponentActivity() {
         val userDescription = intent.getStringExtra("userDescription")
         val userEmail = intent.getStringExtra("userEmail")
         val imageUri = intent.getStringExtra("imageUri")
+        Log.e("ProfileEditActivity", "OLD Image Uri undated: $imageUri")
 
         setContent {
             AndroidProjetTheme {
-                ProfileEditScreen(this@ProfileEditActivity, userFirstName, userLastName, userUsername, userDescription, userEmail, imageUri)
+                ProfileEditScreen(
+                    this@ProfileEditActivity,
+                    userFirstName,
+                    userLastName,
+                    userUsername,
+                    userDescription,
+                    userEmail,
+                    imageUri
+                )
             }
         }
     }
@@ -109,7 +119,11 @@ fun ProfileEditScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 userName?.let { EditableUserNameField(initialUserName = it) { userName = it } }
                 Spacer(modifier = Modifier.height(16.dp))
-                description?.let { EditableDesciptionField(initialDescription = it) { description = it } }
+                description?.let {
+                    EditableDesciptionField(initialDescription = it) {
+                        description = it
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 email?.let { EditableEmailField(initialEmail = it) { email = it } }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -131,7 +145,17 @@ fun ProfileEditScreen(
 }
 
 @Composable
-fun ProfileButton(activity: ComponentActivity, text: String, firstName: String?, lastName: String?, userName: String?, description: String?, email: String?, imageUri: String?, oldImageUri: String?) {
+fun ProfileButton(
+    activity: ComponentActivity,
+    text: String,
+    firstName: String?,
+    lastName: String?,
+    userName: String?,
+    description: String?,
+    email: String?,
+    imageUri: String?,
+    oldImageUri: String?
+) {
     Box(
         modifier = Modifier
             .padding(bottom = 10.dp)
@@ -143,24 +167,8 @@ fun ProfileButton(activity: ComponentActivity, text: String, firstName: String?,
         ClickableText(
             text = AnnotatedString(text).toUpperCase(),
             onClick = {
-                println("First Name: $firstName")
-                println("Last Name: $lastName")
-                println("Username: $userName")
-                println("Description: $description")
-                println("Email: $email")
-                println("Image URI: $imageUri")
 
-                if (imageUri == oldImageUri) {
-                    updateUserInFirebase(
-                        userId = Firebase.auth.currentUser?.uid ?: "",
-                        firstName = firstName ?: "",
-                        lastName = lastName ?: "",
-                        username = userName ?: "",
-                        description = description ?: "",
-                        email = email ?: "",
-                        imageUri = null
-                    )
-                } else {
+                if (imageUri != oldImageUri) {
                     updateUserInFirebase(
                         userId = Firebase.auth.currentUser?.uid ?: "",
                         firstName = firstName ?: "",
@@ -169,10 +177,22 @@ fun ProfileButton(activity: ComponentActivity, text: String, firstName: String?,
                         description = description ?: "",
                         email = email ?: "",
                         imageUri = imageUri?.let { Uri.parse(it) }
-                    )
+                    ) {
+                        activity.finish()
+                    }
+                } else {
+                    updateUserInFirebase(
+                        userId = Firebase.auth.currentUser?.uid ?: "",
+                        firstName = firstName ?: "",
+                        lastName = lastName ?: "",
+                        username = userName ?: "",
+                        description = description ?: "",
+                        email = email ?: "",
+                        imageUri = null
+                    ) {
+                        activity.finish()
+                    }
                 }
-
-                activity.finish()
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -190,9 +210,10 @@ fun ProfilePicture(
     imageUri: String?,
     onImageSelected: (Uri) -> Unit
 ) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { onImageSelected(it) }
-    }
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { onImageSelected(it) }
+        }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -235,7 +256,6 @@ fun ProfilePicture(
 }
 
 
-
 fun updateUserInFirebase(
     userId: String,
     firstName: String,
@@ -243,7 +263,8 @@ fun updateUserInFirebase(
     username: String,
     description: String,
     email: String,
-    imageUri: Uri?
+    imageUri: Uri?,
+    completion: () -> Unit
 ) {
     val database: DatabaseReference = Firebase.database.reference
     val userRef = database.child("Users").child(userId)
@@ -251,34 +272,24 @@ fun updateUserInFirebase(
     if (imageUri != null) {
         uploadProfilePicture(imageUri, userId) { profilePictureUrl ->
             val userData = mapOf(
-                "profilePicture" to profilePictureUrl
+                "profilePicture" to profilePictureUrl,
+                "firstname" to firstName,
+                "lastname" to lastName,
+                "username" to username,
+                "description" to description,
+                "email" to email
             )
 
             userRef.updateChildren(userData)
                 .addOnSuccessListener {
                     println("User data updated successfully")
+                    completion()
                 }
                 .addOnFailureListener { e ->
                     println("Error updating user data: $e")
                 }
+            Log.e("ProfileEditActivity", "Image URI UPDATED: $profilePictureUrl")
         }
-
-        val userData = mapOf(
-            "firstname" to firstName,
-            "lastname" to lastName,
-            "username" to username,
-            "description" to description,
-            "email" to email
-        )
-
-        userRef.updateChildren(userData)
-            .addOnSuccessListener {
-                println("User data updated successfully")
-            }
-            .addOnFailureListener { e ->
-                println("Error updating user data: $e")
-            }
-
     } else {
         val userData = mapOf(
             "firstname" to firstName,
@@ -291,6 +302,7 @@ fun updateUserInFirebase(
         userRef.updateChildren(userData)
             .addOnSuccessListener {
                 println("User data updated successfully")
+                completion()
             }
             .addOnFailureListener { e ->
                 println("Error updating user data: $e")
