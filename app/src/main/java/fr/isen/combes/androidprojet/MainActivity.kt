@@ -258,31 +258,40 @@ fun fetchCommentsForPost(postId: String, onCommentsFetched: (List<Comment>) -> U
     }
 }
 
-fun toggleLikeForPost(postId: String, userId: String, context: Context) {
+fun toggleLikeForPost(postId: String, context: Context) {
+    val uid = Firebase.auth.currentUser?.uid ?: return // Assurez-vous que l'ID utilisateur n'est pas nul
+
     val postRef = Firebase.database.reference.child("Post").child(postId)
 
     postRef.runTransaction(object : Transaction.Handler {
         override fun doTransaction(mutableData: MutableData): Transaction.Result {
             val post = mutableData.getValue(Post::class.java) ?: return Transaction.success(mutableData)
 
-            if (post.likedBy.contains(userId)) {
-                // Si l'utilisateur avait déjà aimé, on retire son like
-                post.likesCount -= 1
-                post.likedBy.remove(userId)
+            // Vérifie si l'utilisateur a déjà aimé le post
+            val hasLiked = uid in post.likedBy
+
+            if (hasLiked) {
+                // Si oui, retire son ID de la liste et décrémente le compteur de likes
+                post.likesCount = post.likesCount - 1
+                post.likedBy = (post.likedBy - uid) as MutableSet<String>
             } else {
-                // Sinon, on ajoute son like
-                post.likesCount += 1
-                post.likedBy.add(userId)
+                // Sinon, ajoute son ID à la liste et incrémente le compteur
+                post.likesCount = post.likesCount + 1
+                post.likedBy = (post.likedBy + uid) as MutableSet<String>
             }
 
-            // Mettre à jour la base de données
             mutableData.value = post
             return Transaction.success(mutableData)
         }
 
-        override fun onComplete(databaseError: DatabaseError?, committed: Boolean, dataSnapshot: DataSnapshot?) {
+        override fun onComplete(error: DatabaseError?, committed: Boolean, dataSnapshot: DataSnapshot?) {
             if (committed) {
-                showToast(context, if (dataSnapshot?.getValue(Post::class.java)?.likedBy?.contains(userId) == true) "Aimé" else "Like retiré")
+                // Affiche un toast pour indiquer si le like a été ajouté ou retiré
+                if (uid in dataSnapshot?.getValue(Post::class.java)?.likedBy ?: emptySet<String>()) {
+                    showToast(context, "Vous avez aimé ce post")
+                } else {
+                    showToast(context, "Vous avez retiré votre like")
+                }
             } else {
                 showToast(context, "Erreur lors de la mise à jour du like")
             }

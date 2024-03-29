@@ -242,7 +242,11 @@ fun RegisterPage() {
             )
             TextField(
                 value = username.value,
-                onValueChange = { username.value = it },
+                onValueChange = { newValue ->
+                    if (!newValue.contains("@")) {
+                        username.value = newValue
+                    }
+                },
                 label = { Text("Pseudo") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions.Default.copy(
@@ -256,14 +260,14 @@ fun RegisterPage() {
                     .padding(vertical = 8.dp)
                     .border(
                         width = 1.dp,
-                        color = Color(0xFF00C974),
+                        color = androidx.compose.ui.graphics.Color(0xFF00C974),
                         shape = MaterialTheme.shapes.extraLarge
                     ),
                 shape = MaterialTheme.shapes.extraLarge,
                 colors = TextFieldDefaults.textFieldColors(
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
                 )
             )
             TextField(
