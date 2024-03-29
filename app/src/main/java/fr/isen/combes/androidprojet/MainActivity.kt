@@ -75,6 +75,7 @@ import coil.compose.rememberImagePainter
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.MutableData
 import com.google.firebase.database.Transaction
 import com.google.firebase.database.ValueEventListener
@@ -91,13 +92,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class Post(
+data class Posts(
     var id: String = "",
     var description: String = "",
     var imageUrl: String = "",
     var publicationDate: String = "",
     var likesCount: Int = 0,
-    var likedBy: MutableSet<String> = mutableSetOf(),
+    var likedBy: MutableList<String> = mutableListOf(),
     var uid: String = "",
     val comments: MutableList<Comment> = mutableListOf(),
     var commentCount: Int = 0
@@ -142,13 +143,31 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun fetchPostsFromFirebase(onPostsFetched: (List<Post>) -> Unit) {
+fun fetchUserDataFromFirebase(userId: String, onUserDataFetched: (User?) -> Unit) {
+    val database = FirebaseDatabase.getInstance()
+    val usersRef = database.getReference("Users/$userId")
+
+    usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+        override fun onDataChange(dataSnapshot: DataSnapshot) {
+            val userData = dataSnapshot.getValue(User::class.java)
+            onUserDataFetched(userData)
+        }
+
+        override fun onCancelled(databaseError: DatabaseError) {
+            // Handle errors
+            onUserDataFetched(null)
+            println("Error fetching user data: ${databaseError.message}")
+        }
+    })
+}
+
+fun fetchPostsFromFirebase(onPostsFetched: (List<Posts>) -> Unit) {
     val postsRef = Firebase.database.reference.child("Post")
     postsRef.addListenerForSingleValueEvent(object : ValueEventListener {
         override fun onDataChange(snapshot: DataSnapshot) {
-            val posts = mutableListOf<Post>()
+            val posts = mutableListOf<Posts>()
             for (postSnapshot in snapshot.children) {
-                val post = postSnapshot.getValue(Post::class.java)?.apply {
+                val post = postSnapshot.getValue(Posts::class.java)?.apply {
                     // Mise à jour pour correspondre à la structure de votre Post
                     this.commentCount = postSnapshot.child("commentCount").getValue(Int::class.java) ?: 0
                     this.id = postSnapshot.key ?: ""
@@ -265,34 +284,39 @@ fun toggleLikeForPost(postId: String, context: Context) {
 
     postRef.runTransaction(object : Transaction.Handler {
         override fun doTransaction(mutableData: MutableData): Transaction.Result {
-            val post = mutableData.getValue(Post::class.java) ?: return Transaction.success(mutableData)
+            // Récupération du post actuel à partir des données de la transaction
+            val post = mutableData.getValue(Posts::class.java)
+                ?: return Transaction.success(mutableData) // S'assurer que le post existe
 
-            // Vérifie si l'utilisateur a déjà aimé le post
-            val hasLiked = uid in post.likedBy
-
-            if (hasLiked) {
-                // Si oui, retire son ID de la liste et décrémente le compteur de likes
-                post.likesCount = post.likesCount - 1
-                post.likedBy = (post.likedBy - uid) as MutableSet<String>
+            // Vérification si l'utilisateur actuel a déjà aimé le post
+            if (uid in post.likedBy) {
+                // Retirer l'utilisateur de la liste des likes et décrémenter le compteur
+                post.likesCount -= 1
+                post.likedBy.remove(uid)
             } else {
-                // Sinon, ajoute son ID à la liste et incrémente le compteur
-                post.likesCount = post.likesCount + 1
-                post.likedBy = (post.likedBy + uid) as MutableSet<String>
+                // Ajouter l'utilisateur à la liste des likes et incrémenter le compteur
+                post.likesCount += 1
+                post.likedBy.add(uid)
             }
 
-            mutableData.value = post
+            // Mise à jour des champs concernés dans la base de données
+            mutableData.child("likesCount").value = post.likesCount
+            mutableData.child("likedBy").value = post.likedBy
+
             return Transaction.success(mutableData)
         }
 
         override fun onComplete(error: DatabaseError?, committed: Boolean, dataSnapshot: DataSnapshot?) {
             if (committed) {
-                // Affiche un toast pour indiquer si le like a été ajouté ou retiré
-                if (uid in dataSnapshot?.getValue(Post::class.java)?.likedBy ?: emptySet<String>()) {
-                    showToast(context, "Vous avez aimé ce post")
+                // Affichage d'un toast pour notifier l'utilisateur du succès de l'opération
+                val message = if (uid in dataSnapshot?.child("likedBy")?.children?.map { it.key } ?: emptyList()) {
+                    "Vous avez aimé ce post"
                 } else {
-                    showToast(context, "Vous avez retiré votre like")
+                    "Vous avez retiré votre like"
                 }
+                showToast(context, message)
             } else {
+                // En cas d'échec, afficher un message d'erreur
                 showToast(context, "Erreur lors de la mise à jour du like")
             }
         }
@@ -306,10 +330,10 @@ fun MyApp(user: User) {
     val bottomSheetScaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberBottomSheetState(initialValue = BottomSheetValue.Collapsed)
     )
-    val postsState = remember { mutableStateOf<List<Post>>(emptyList()) }
+    val postsState = remember { mutableStateOf<List<Posts>>(emptyList()) }
     val usersState = remember { mutableStateOf<Map<String, User>>(emptyMap()) }
 
-    val selectedPost = remember { mutableStateOf<Post?>(null) }
+    val selectedPost = remember { mutableStateOf<Posts?>(null) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -354,14 +378,14 @@ fun MyApp(user: User) {
 }
 
 @Composable
-fun MainScreen(onCommentClick: (Post, String) -> Unit, profilePictureUrl: String?, posts: List<Post>, users: Map<String, User>) {
+fun MainScreen(onCommentClick: (Posts, String) -> Unit, profilePictureUrl: String?, posts: List<Posts>, users: Map<String, User>) {
     val context = LocalContext.current // Récupérer le contexte local
 
     Scaffold(
         topBar = { MyAppTopBar() },
         bottomBar = { MyBottomAppBar(profilePictureUrl, context) }
     ) { innerPadding ->
-        PostsList(posts = posts, users = users, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding))
+        PostsList(posts = posts, users = users, onCommentClick = onCommentClick, modifier = Modifier.padding(innerPadding), context = context)
     }
 }
 
@@ -421,10 +445,17 @@ fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
                 modifier = Modifier
                     .clip(MaterialTheme.shapes.medium)
                     .background(backgroundColor)
-                    .border(2.5.dp, Color.Black, MaterialTheme.shapes.medium) // Bordure (couleur et épaisseur
+                    .border(
+                        2.5.dp,
+                        Color.Black,
+                        MaterialTheme.shapes.medium
+                    ) // Bordure (couleur et épaisseur
                     .size(32.dp) // Taille du cadre carré
             ) {
-                IconButton(onClick = { /* Handle add icon click */ }) {
+                IconButton(onClick = {
+                    val intent = Intent(context, PostActivity::class.java)
+                    context.startActivity(intent)
+                }) {
                     Icon(
                         Icons.Filled.Add,
                         contentDescription = "Add",
@@ -459,20 +490,61 @@ fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
 }
 
 @Composable
-fun PostsList(posts: List<Post>, users: Map<String, User>, onCommentClick: (Post, String) -> Unit, modifier: Modifier = Modifier) {
+fun PostsList(posts: List<Posts>, users: Map<String, User>, onCommentClick: (Posts, String) -> Unit, modifier: Modifier = Modifier, context: Context) {
     LazyColumn(modifier = modifier) {
         items(posts) { post ->
-            PostCard(post = post, users = users, onCommentClick = { selectedPost, postId ->
-                onCommentClick(selectedPost, postId)
-            })
+            PostCard(
+                post = post,
+                users = users,
+                onCommentClick = { post, postId -> onCommentClick(post, postId) },
+                onLikePost = { postId, context -> toggleLikeForPost(postId, context) },
+                context = context
+            )
         }
     }
 }
 
+fun attachPostLikesListener(postId: String, onUpdate: (Int, Boolean) -> Unit) {
+    val postRef = Firebase.database.reference.child("Post").child(postId)
+    postRef.addValueEventListener(object : ValueEventListener {
+        override fun onDataChange(snapshot: DataSnapshot) {
+            val post = snapshot.getValue(Posts::class.java)
+            post?.let {
+                val isLiked = it.likedBy.contains(Firebase.auth.currentUser?.uid)
+                onUpdate(it.likesCount, isLiked)
+            }
+        }
+
+        override fun onCancelled(error: DatabaseError) {
+            Log.e("attachPostLikesListener", "Failed to listen for post likes changes", error.toException())
+        }
+    })
+}
+
 @Composable
-fun PostCard(post: Post, users: Map<String, User>, onCommentClick: (Post, String) -> Unit) {
+fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, String) -> Unit, onLikePost: (String, Context) -> Unit, context: Context) {
+    val coroutineScope = rememberCoroutineScope()
     val likesText = remember { mutableStateOf("${post.likesCount} J'aime") }
-    val isLiked = remember { mutableStateOf(false) }
+    val isLiked = remember { mutableStateOf(post.likedBy.contains(Firebase.auth.currentUser?.uid)) }
+
+    LaunchedEffect(post.id) {
+        val postRef = Firebase.database.reference.child("Post").child(post.id)
+        val postEventListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val updatedPost = snapshot.getValue(Posts::class.java)
+                updatedPost?.let {
+                    likesText.value = "${it.likesCount} J'aime"
+                    isLiked.value = it.likedBy.contains(Firebase.auth.currentUser?.uid)
+                }
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("PostCard", "Error listening to post updates", error.toException())
+            }
+        }
+
+        postRef.addValueEventListener(postEventListener)
+    }
 
     val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
     val postDate = dateFormat.format(Date()) // Utilisez la bonne date du post
@@ -483,103 +555,190 @@ fun PostCard(post: Post, users: Map<String, User>, onCommentClick: (Post, String
     val username = user?.username ?: "Utilisateur inconnu"
     val userProfilePictureUrl = user?.profilePicture ?: "" // Remplacer par une URL d'image de profil par défaut si souhaité
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Header de la Card avec l'image de profil et le nom d'utilisateur
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    if(post.imageUrl != "") {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header de la Card avec l'image de profil et le nom d'utilisateur
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        if (userProfilePictureUrl.isNotEmpty()) {
+                            rememberImagePainter(userProfilePictureUrl)
+                        } else {
+                            painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                        },
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Image du post prenant toute la largeur de la Card
                 Image(
-                    painter = rememberImagePainter(userProfilePictureUrl, builder = {
-                        crossfade(true)
-                    }),
-                    contentDescription = "Profile Picture",
+                    painter = rememberImagePainter(post.imageUrl),
+                    contentDescription = "Post Image",
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .fillMaxWidth()
+                        .height(200.dp)
                         .fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-            // Image du post prenant toute la largeur de la Card
-            Image(
-                painter = rememberImagePainter(post.imageUrl),
-                contentDescription = "Post Image",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Icônes sous l'image
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Icône de cœur vide
-                IconButton(onClick = {
-                    // Ici, mettez à jour votre base de données Firebase pour refléter le like et mettez à jour le compteur de likes localement.
-                    isLiked.value = !isLiked.value
-                    if (isLiked.value) {
-                        // Simuler l'ajout d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
-                        likesText.value = "${post.likesCount + 1} J'aime"
-                    } else {
-                        // Simuler le retrait d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
-                        likesText.value = "${post.likesCount} J'aime"
+                // Icônes sous l'image
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Icône de cœur vide
+                    IconButton(onClick = {
+                        isLiked.value = !isLiked.value
+                        onLikePost(post.id, context) // Gérer le like/unlike
+                        // Vous pourriez vouloir mettre à jour l'état du bouton like ici, mais il est préférable de le faire en réponse à un changement de données dans Firebase pour rester synchronisé.
+                    }) {
+                        Icon(
+                            imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isLiked.value) "Unlike" else "Like",
+                            tint = if (isLiked.value) Color.Red else Color.Gray
+                        )
                     }
-                }) {
-                    Icon(
-                        imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = "Like",
-                        tint = if (isLiked.value) Color.Magenta else Color.Black
-                    )
+                    // Icône de bulle de texte
+                    IconButton(onClick = { onCommentClick(post, post.id) }) {
+                        Icon(
+                            Icons.Filled.MailOutline,
+                            contentDescription = "Comment",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Black
+                        )
+                    }
                 }
-                // Icône de bulle de texte
-                IconButton(onClick = { onCommentClick(post, post.id) }) {
-                    Icon(
-                        Icons.Filled.MailOutline,
-                        contentDescription = "Comment",
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.Black
-                    )
-                }
+
+                Text(
+                    text = likesText.value,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Description et date de publication en bas
+                Text(text = post.description, style = MaterialTheme.typography.bodyMedium)
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Voir les ${post.commentCount} commentaires",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clickable { onCommentClick(post, post.id) }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Publié le $postDate",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
+        }
+    } else {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Header de la Card avec l'image de profil et le nom d'utilisateur
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        if (userProfilePictureUrl.isNotEmpty()) {
+                            rememberImagePainter(userProfilePictureUrl)
+                        } else {
+                            painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                        },
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = username, style = MaterialTheme.typography.bodyMedium) // Remplacez "Username" par le nom d'utilisateur réel
+                }
 
-            Text(
-                text = likesText.value,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-            )
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(4.dp))
+                // Icônes sous l'image
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Icône de cœur vide
+                    IconButton(onClick = {
+                        // Ici, mettez à jour votre base de données Firebase pour refléter le like et mettez à jour le compteur de likes localement.
+                        isLiked.value = !isLiked.value
+                        if (isLiked.value) {
+                            // Simuler l'ajout d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
+                            likesText.value = "${post.likesCount + 1} J'aime"
+                        } else {
+                            // Simuler le retrait d'un like. Dans la pratique, mettez à jour la base de données et rafraîchissez la valeur de likesCount.
+                            likesText.value = "${post.likesCount} J'aime"
+                        }
+                    }) {
+                        Icon(
+                            imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (isLiked.value) Color.Magenta else Color.Black
+                        )
+                    }
+                    // Icône de bulle de texte
+                    IconButton(onClick = { onCommentClick(post, post.id) }) {
+                        Icon(
+                            Icons.Filled.MailOutline,
+                            contentDescription = "Comment",
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Black
+                        )
+                    }
+                }
 
-            // Description et date de publication en bas
-            Text(text = post.description, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = likesText.value,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
 
-            Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-            Text(
-                text = "Voir les ${post.commentCount} commentaires",
-                color = Color.Gray,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.clickable { onCommentClick(post, post.id) }
-            )
+                // Description et date de publication en bas
+                Text(text = post.description, style = MaterialTheme.typography.bodyMedium)
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Publié le $postDate",
-                color = Color.Gray,
-                style = MaterialTheme.typography.bodySmall
-            )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Voir les ${post.commentCount} commentaires",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clickable { onCommentClick(post, post.id) }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Publié le $postDate",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }
@@ -593,17 +752,24 @@ fun CommentCard(comment: Comment, users: Map<String, User>) {
     val userProfilePictureUrl = user?.profilePicture ?: "" // Remplacer par une URL d'image de profil par défaut si souhaité
 
     Row(
-        modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+        modifier = Modifier
+            .padding(vertical = 8.dp)
+            .fillMaxWidth(),
         verticalAlignment = Alignment.Top
     ) {
         // Assurez-vous que l'image de profil est correctement chargée
         // Note : Adapter le chargement de l'image en fonction de votre cas d'usage, par exemple en utilisant coil
         Image(
-            painter = rememberImagePainter(userProfilePictureUrl, builder = {
-                crossfade(true)
-            }),
+            if (userProfilePictureUrl.isNotEmpty()) {
+                rememberImagePainter(userProfilePictureUrl)
+            } else {
+                painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+            },
             contentDescription = "Profile picture",
-            modifier = Modifier.size(40.dp).clip(CircleShape).border(0.5.dp, Color.Gray, CircleShape),
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .border(0.5.dp, Color.Gray, CircleShape),
             contentScale = ContentScale.Crop
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -627,7 +793,7 @@ fun CommentCard(comment: Comment, users: Map<String, User>) {
 }
 
 @Composable
-fun SheetContent(post: Post, user: User, context: Context, onAddComment: (String, String, (Comment) -> Unit) -> Unit, users: Map<String, User>, ) {
+fun SheetContent(post: Posts, user: User, context: Context, onAddComment: (String, String, (Comment) -> Unit) -> Unit, users: Map<String, User>, ) {
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val sheetHeight = screenHeight * 0.5f
 
