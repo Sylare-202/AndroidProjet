@@ -101,8 +101,7 @@ data class Posts(
     var likedBy: MutableList<String> = mutableListOf(),
     var uid: String = "",
     val comments: MutableList<Comment> = mutableListOf(),
-    var commentCount: Int = 0,
-    var timestamp: Long = 0L
+    var commentCount: Int = 0
 )
 
 data class Comment(
@@ -177,12 +176,10 @@ fun fetchPostsFromFirebase(onPostsFetched: (List<Posts>) -> Unit) {
                     this.description = postSnapshot.child("description").getValue(String::class.java) ?: ""
                     this.publicationDate = postSnapshot.child("date").getValue(String::class.java) ?: ""
                     this.likesCount = postSnapshot.child("like").getValue(Int::class.java) ?: 0
-                    this.timestamp = postSnapshot.child("timestamp").getValue(Long::class.java) ?: 0L
                 }
                 post?.let { posts.add(it) }
             }
-            val sortedPosts = posts.sortedByDescending { it.timestamp }
-            onPostsFetched(sortedPosts)
+            onPostsFetched(posts)
         }
 
         override fun onCancelled(error: DatabaseError) {
@@ -456,6 +453,7 @@ fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
                     .size(32.dp) // Taille du cadre carré
             ) {
                 IconButton(onClick = {
+                    // Rediriger vers AddPostActivity
                     val intent = Intent(context, PostActivity::class.java)
                     context.startActivity(intent)
                 }) {
@@ -471,6 +469,10 @@ fun MyBottomAppBar(profilePictureUrl: String?, context: Context) {
             IconButton(onClick = {
                 // Rediriger vers ProfileViewActivity
                 val intent = Intent(context, ProfileViewActivity::class.java)
+                val userId = Firebase.auth.currentUser?.uid
+                Log.e("UserID", "User ID: $userId")
+                intent.putExtra("userId", userId)
+
                 context.startActivity(intent)
             }) {
                 val imagePainter = if (!profilePictureUrl.isNullOrEmpty()) {
@@ -549,7 +551,8 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
         postRef.addValueEventListener(postEventListener)
     }
 
-    val dateFormat = post.publicationDate
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val postDate = dateFormat.format(Date()) // Utilisez la bonne date du post
 
     val user = users[post.uid] // Trouver l'utilisateur associé au post
 
@@ -567,7 +570,12 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
             Column(modifier = Modifier.padding(16.dp)) {
                 // Header de la Card avec l'image de profil et le nom d'utilisateur
                 Box(modifier = Modifier.clickable{
-                    //TODO: Ouvrir le profil de l'utilisateur
+                    // Rediriger vers ProfileViewActivity
+                    val intent = Intent(context, ProfileViewActivity::class.java)
+                    Log.e("UserID", "User ID: $post")
+                    intent.putExtra("userId", post.uid)
+
+                    context.startActivity(intent)
                 }){
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
@@ -651,7 +659,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Publié le $dateFormat",
+                    text = "Publié le $postDate",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -705,7 +713,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
                         Icon(
                             imageVector = if (isLiked.value) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = "Like",
-                            tint = if (isLiked.value) Color.Red else Color.Black
+                            tint = if (isLiked.value) Color.Magenta else Color.Black
                         )
                     }
                     // Icône de bulle de texte
@@ -740,7 +748,7 @@ fun PostCard(post: Posts, users: Map<String, User>, onCommentClick: (Posts, Stri
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Publié le $dateFormat",
+                    text = "Publié le $postDate",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall
                 )

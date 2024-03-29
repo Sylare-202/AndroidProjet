@@ -46,6 +46,7 @@ import coil.compose.rememberImagePainter
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -82,33 +83,36 @@ data class Post(
 
 class ProfileViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val userId = intent.getStringExtra("userId")
         super.onCreate(savedInstanceState)
-        fetchUserData()
+        if (userId != null) {
+            fetchUserData(userId)
+        }
     }
 
     override fun onResume() {
+        val userId = intent.getStringExtra("userId")
         super.onResume()
-        fetchUserData()
+        if (userId != null) {
+            fetchUserData(userId)
+        }
     }
 
-    private fun fetchUserData() {
-        val userId = Firebase.auth.currentUser?.uid
-        if (userId != null) {
-            val database = FirebaseDatabase.getInstance()
-            val usersRef = database.getReference("Users/$userId")
-            usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(dataSnapshot: DataSnapshot) {
-                    val user = dataSnapshot.getValue(User::class.java)
-                    user?.let {
-                        fetchUserPosts(user)
-                    }
+    private fun fetchUserData(userId: String) {
+        val database = FirebaseDatabase.getInstance()
+        val usersRef = database.getReference("Users/$userId")
+        usersRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                val user = dataSnapshot.getValue(User::class.java)
+                user?.let {
+                    fetchUserPosts(user)
                 }
+            }
 
-                override fun onCancelled(databaseError: DatabaseError) {
-                    println("Error fetching user data: ${databaseError.message}")
-                }
-            })
-        }
+            override fun onCancelled(databaseError: DatabaseError) {
+                println("Error fetching user data: ${databaseError.message}")
+            }
+        })
     }
 
     private fun fetchUserPosts(user: User) {
@@ -175,96 +179,103 @@ fun ProfileScreen(activity: ComponentActivity, user: User, posts: List<Post>) {
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Top
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            item {
-                IconButton(
-                    onClick = {
-                        Firebase.auth.signOut()
-                        val intent = Intent(activity, LoginActivity::class.java)
-                        activity.startActivity(intent)
-                    },
-                    modifier = Modifier
-                        .padding(top = 0.dp, end = 0.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Logout",
-                        tint = Color.Gray
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    ProfileHeader(size = 120, user = user)
-                    Spacer(modifier = Modifier.width(16.dp))
-                    val numberOfPosts = posts.size
-
-                    countFollowers(user.uid,
-                        onCountReceived = { count ->
-                            followerCount = count
-                        },
-                        onError = { error ->
-                            throw Exception(error)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 0.dp),
+                verticalArrangement = Arrangement.Top
+            ) {
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (user.uid == Firebase.auth.currentUser?.uid) {
+                            Text(
+                                text = "Disconnect",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Red,
+                                modifier = Modifier.clickable {
+                                    Firebase.auth.signOut()
+                                    val intent = Intent(activity, LoginActivity::class.java)
+                                    activity.startActivity(intent)
+                                }
+                            )
                         }
-                    )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        ProfileHeader(size = 120, user = user)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        val numberOfPosts = posts.size
 
-                    countFollowing(user.uid,
-                        onCountReceived = { count ->
-                            followingCount = count
-                        },
-                        onError = { error ->
-                            throw Exception(error)
-                        }
-                    )
+                        countFollowers(user.uid,
+                            onCountReceived = { count ->
+                                followerCount = count
+                            },
+                            onError = { error ->
+                                throw Exception(error)
+                            }
+                        )
 
-                    ProfileInfo(
-                        numberOfPosts,
-                        followingCount,
-                        followerCount,
-                        user.firstname,
-                        user.lastname,
-                        user.username,
-                        user.description
-                    )
+                        countFollowing(user.uid,
+                            onCountReceived = { count ->
+                                followingCount = count
+                            },
+                            onError = { error ->
+                                throw Exception(error)
+                            }
+                        )
+
+                        ProfileInfo(
+                            numberOfPosts,
+                            followingCount,
+                            followerCount,
+                            user.firstname,
+                            user.lastname,
+                            user.username,
+                            user.description
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
+
+                    Log.e("UserInfo", "User: ${user.uid}")
+                    Log.e("UserInfo", "Current user: ${Firebase.auth.currentUser?.uid}")
+                    if (user.uid != Firebase.auth.currentUser?.uid) {
+                        FollowProfileButton(user)
+                    } else {
+                        ProfileButton(activity, user, "edit profile")
+                    }
+
+
+                    Divider(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        color = Color.Gray,
+                        thickness = 1.dp
+                    )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Log.e("UserInfo", "User: ${user.uid}")
-                Log.e("UserInfo", "Current user: ${Firebase.auth.currentUser?.uid}")
-                if (user.uid != Firebase.auth.currentUser?.uid) {
-                    FollowProfileButton(user)
-                } else {
-                    ProfileButton(activity, user, "edit profile")
+                item {
+                    PostGrid(posts = posts, activity = activity)
                 }
-
-
-                Divider(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 16.dp),
-                    color = Color.Gray,
-                    thickness = 1.dp
-                )
             }
-            item {
-                PostGrid(posts = posts, activity = activity)
-            }
+            MyBottomAppBarProfil(user = user, context = activity)
         }
-        //MyBottomAppBarProfil(profilePictureUrl = user.profilePicture, context = activity)
     }
 }
 
+
 @Composable
-fun MyBottomAppBarProfil(profilePictureUrl: String?, context: Context) {
+fun MyBottomAppBarProfil(user: User, context: Context) {
     val backgroundColor = Color(0xFFF7F7F7)
 
     BottomAppBar(
@@ -314,25 +325,38 @@ fun MyBottomAppBarProfil(profilePictureUrl: String?, context: Context) {
                 }
             }
             // Icône de profil
-            IconButton(onClick = {
-                // Rediriger vers ProfileViewActivity
-                val intent = Intent(context, ProfileViewActivity::class.java)
-                context.startActivity(intent)
-            }) {
-                val imagePainter = if (!profilePictureUrl.isNullOrEmpty()) {
-                    rememberImagePainter(profilePictureUrl)
-                } else {
-                    painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+            if (com.google.firebase.ktx.Firebase.auth.currentUser?.uid == user.uid) {
+                IconButton(onClick = {
+                    Toast.makeText(context, "Already on the profile", Toast.LENGTH_SHORT).show()
+                }) {
+                    val imagePainter = if (!user.profilePicture.isNullOrEmpty()) {
+                        rememberImagePainter(user.profilePicture)
+                    } else {
+                        painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                    }
+                    Image(
+                        painter = imagePainter,
+                        contentDescription = "Profile",
+                        modifier = Modifier
+                            .size(40.dp) // Set the size of the icon
+                            .clip(CircleShape) // Make the image circular
+                            .fillMaxSize(), // Ensure the image fills the space
+                        contentScale = ContentScale.Crop // Crop the image if necessary to fit
+                    )
                 }
-                Image(
-                    painter = imagePainter,
-                    contentDescription = "Profile",
+            } else {
+                Box(
                     modifier = Modifier
-                        .size(40.dp) // Set the size of the icon
-                        .clip(CircleShape) // Make the image circular
-                        .fillMaxSize(), // Ensure the image fills the space
-                    contentScale = ContentScale.Crop // Crop the image if necessary to fit
-                )
+                        .size(40.dp)
+                        .clickable {
+                            val intent = Intent(context, ProfileViewActivity::class.java)
+                            intent.putExtra("userId", user.uid)
+                            context.startActivity(intent)
+                        }
+                        .background(Color.Transparent) // Set the background color to transparent
+                ) {
+                    // No content inside the Box
+                }
             }
         }
     }
