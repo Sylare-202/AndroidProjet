@@ -37,6 +37,7 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 
 data class User(
+    var uid: String = "",
     val description: String = "",
     val email: String = "",
     val firstname: String = "",
@@ -113,6 +114,7 @@ class ProfileViewActivity : ComponentActivity() {
                                         }
                                         setContent {
                                             AndroidProjetTheme {
+                                                user.uid = uid
                                                 println("User data: $user")
                                                 Log.e("User data", "NEW imageURI: ${user.profilePicture}")
                                                 ProfileScreen(this@ProfileViewActivity, user, posts)
@@ -179,7 +181,16 @@ fun ProfileScreen(activity: ComponentActivity, user: User, posts: List<Post>) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                ProfileButton(activity, user, "edit profile")
+
+                Log.e("UserInfo", "User: ${user.uid}")
+                Log.e("UserInfo", "Current user: ${Firebase.auth.currentUser?.uid}")
+                if (user.uid != Firebase.auth.currentUser?.uid) {
+                    FollowProfileButton(activity, user, "follow", false)
+                } else {
+                    ProfileButton(activity, user, "edit profile")
+                }
+
+
                 Divider(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -310,6 +321,36 @@ fun ProfileButton(activity: ComponentActivity, userData: User, text: String) {
         )
     }
 }
+
+@Composable
+fun FollowProfileButton(activity: ComponentActivity, userData: User, text: String, isFollowed: Boolean) {
+    val buttonColor = if (isFollowed) Color(0xFF00C974) else Color.Gray
+    val buttonText = if (isFollowed) "Following" else "Follow"
+
+    Box(
+        modifier = Modifier
+            .padding(bottom = 10.dp)
+            .background(
+                color = buttonColor,
+                shape = MaterialTheme.shapes.extraLarge
+            )
+    ) {
+        ClickableText(
+            text = AnnotatedString(buttonText).toUpperCase(),
+            onClick = {
+                      /* TODO: Implement follow/unfollow functionality */
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            style = TextStyle(
+                textAlign = TextAlign.Center,
+                color = Color.White
+            )
+        )
+    }
+}
+
 
 @Composable
 fun PostGrid(posts: List<Post>) {
