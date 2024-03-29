@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
@@ -26,9 +27,15 @@ import fr.isen.combes.androidprojet.ui.theme.AndroidProjetTheme
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.toUpperCase
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.database.DatabaseReference
@@ -62,7 +69,7 @@ fun ProfileEditScreen(
     userUsername: String?,
     userDescription: String?,
     userEmail: String?,
-    imageUri: String?
+    imageUrl: String?
 ) {
     var firstName by remember { mutableStateOf(userFirstName) }
     var lastName by remember { mutableStateOf(userLastName) }
@@ -70,7 +77,10 @@ fun ProfileEditScreen(
     var description by remember { mutableStateOf(userDescription) }
     var email by remember { mutableStateOf(userEmail) }
 
-    var imageUri by remember { mutableStateOf(imageUri) }
+    var imageUri by remember { mutableStateOf(imageUrl) }
+
+    val oldImageUri = imageUrl.toString()
+    println("oldImageUri: $oldImageUri")
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -103,39 +113,75 @@ fun ProfileEditScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 email?.let { EditableEmailField(initialEmail = it) { email = it } }
                 Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        println("First Name: $firstName")
-                        println("Last Name: $lastName")
-                        println("Username: $userName")
-                        println("Description: $description")
-                        println("Email: $email")
-                        println("Image URI: $imageUri")
 
-                        // Here you can call a function to upload the image to Firebase storage
-                        // You can use the 'uploadProfilePicture' function provided
-
-                        // Then, update user data in Firebase
-                        updateUserInFirebase(
-                            userId = Firebase.auth.currentUser?.uid ?: "",
-                            firstName = firstName ?: "",
-                            lastName = lastName ?: "",
-                            username = userName ?: "",
-                            description = description ?: "",
-                            email = email ?: "",
-                            imageUri = imageUri?.let { Uri.parse(it) }
-                        )
-
-                        val intent = Intent(activity, ProfileViewActivity::class.java)
-                        activity.startActivity(intent)
-
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(text = "Save Changes")
-                }
+                ProfileButton(
+                    activity = activity,
+                    text = "Save Changes",
+                    firstName = firstName,
+                    lastName = lastName,
+                    userName = userName,
+                    description = description,
+                    email = email,
+                    imageUri = imageUri,
+                    oldImageUri = oldImageUri
+                )
             }
         }
+    }
+}
+
+@Composable
+fun ProfileButton(activity: ComponentActivity, text: String, firstName: String?, lastName: String?, userName: String?, description: String?, email: String?, imageUri: String?, oldImageUri: String?) {
+    Box(
+        modifier = Modifier
+            .padding(bottom = 10.dp)
+            .background(
+                color = Color(0xFF00C974),
+                shape = MaterialTheme.shapes.extraLarge
+            )
+    ) {
+        ClickableText(
+            text = AnnotatedString(text).toUpperCase(),
+            onClick = {
+                println("First Name: $firstName")
+                println("Last Name: $lastName")
+                println("Username: $userName")
+                println("Description: $description")
+                println("Email: $email")
+                println("Image URI: $imageUri")
+
+                if (imageUri == oldImageUri) {
+                    updateUserInFirebase(
+                        userId = Firebase.auth.currentUser?.uid ?: "",
+                        firstName = firstName ?: "",
+                        lastName = lastName ?: "",
+                        username = userName ?: "",
+                        description = description ?: "",
+                        email = email ?: "",
+                        imageUri = null
+                    )
+                } else {
+                    updateUserInFirebase(
+                        userId = Firebase.auth.currentUser?.uid ?: "",
+                        firstName = firstName ?: "",
+                        lastName = lastName ?: "",
+                        username = userName ?: "",
+                        description = description ?: "",
+                        email = email ?: "",
+                        imageUri = imageUri?.let { Uri.parse(it) }
+                    )
+                }
+
+                activity.finish()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            style = TextStyle(
+                textAlign = TextAlign.Center,
+                color = Color.White
+            )
+        )
     }
 }
 
@@ -154,13 +200,14 @@ fun ProfilePicture(
     ) {
         Text(
             text = "Profile Picture",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .size(200.dp)
-                .background(Color.LightGray, shape = MaterialTheme.shapes.medium)
+                .background(color = Color(0x4000C974), shape = MaterialTheme.shapes.extraLarge)
                 .clickable {
                     launcher.launch("image/*")
                 },
@@ -171,7 +218,9 @@ fun ProfilePicture(
                 Image(
                     painter = rememberImagePainter(imageUri),
                     contentDescription = "Profile Picture",
-                    modifier = Modifier.size(180.dp),
+                    modifier = Modifier
+                        .size(180.dp)
+                        .clip(MaterialTheme.shapes.extraLarge),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -202,11 +251,6 @@ fun updateUserInFirebase(
     if (imageUri != null) {
         uploadProfilePicture(imageUri, userId) { profilePictureUrl ->
             val userData = mapOf(
-                "firstname" to firstName,
-                "lastname" to lastName,
-                "username" to username,
-                "description" to description,
-                "email" to email,
                 "profilePicture" to profilePictureUrl
             )
 
@@ -218,6 +262,23 @@ fun updateUserInFirebase(
                     println("Error updating user data: $e")
                 }
         }
+
+        val userData = mapOf(
+            "firstname" to firstName,
+            "lastname" to lastName,
+            "username" to username,
+            "description" to description,
+            "email" to email
+        )
+
+        userRef.updateChildren(userData)
+            .addOnSuccessListener {
+                println("User data updated successfully")
+            }
+            .addOnFailureListener { e ->
+                println("Error updating user data: $e")
+            }
+
     } else {
         val userData = mapOf(
             "firstname" to firstName,
@@ -246,7 +307,7 @@ fun uploadProfilePicture(uri: Uri, userId: String, onComplete: (String) -> Unit)
             }
         }
         .addOnFailureListener {
-            // Handle failure
+            println("Error uploading profile picture: $it")
         }
 }
 
@@ -259,7 +320,8 @@ fun EditableFirstNameField(initialName: String, onNameChange: (String) -> Unit) 
     ) {
         Text(
             text = "First Name",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
@@ -286,7 +348,8 @@ fun EditableLastNameField(initialName: String, onNameChange: (String) -> Unit) {
     ) {
         Text(
             text = "Last Name",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
@@ -313,7 +376,8 @@ fun EditableUserNameField(initialUserName: String, onUserNameChange: (String) ->
     ) {
         Text(
             text = "Username",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
@@ -342,7 +406,8 @@ fun EditableDesciptionField(initialDescription: String, onDescriptionChange: (St
     ) {
         Text(
             text = "Description",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
@@ -370,7 +435,8 @@ fun EditableEmailField(initialEmail: String, onEmailChange: (String) -> Unit) {
     ) {
         Text(
             text = "Email",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF00C974)
         )
         Spacer(modifier = Modifier.height(4.dp))
         TextField(
