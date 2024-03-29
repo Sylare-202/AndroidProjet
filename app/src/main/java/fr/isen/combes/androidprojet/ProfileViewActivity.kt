@@ -21,9 +21,13 @@ import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -251,11 +256,88 @@ fun ProfileScreen(activity: ComponentActivity, user: User, posts: List<Post>) {
                 )
             }
             item {
-                PostGrid(posts = posts)
+                PostGrid(posts = posts, activity = activity)
+            }
+        }
+        //MyBottomAppBarProfil(profilePictureUrl = user.profilePicture, context = activity)
+    }
+}
+
+@Composable
+fun MyBottomAppBarProfil(profilePictureUrl: String?, context: Context) {
+    val backgroundColor = Color(0xFFF7F7F7)
+
+    BottomAppBar(
+        containerColor = backgroundColor,
+        modifier = Modifier.height(56.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp), // Ajuste le padding horizontal pour centrer les icônes si nécessaire
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icône Home
+            IconButton(onClick = {
+                (context as ComponentActivity).finish()
+            }) {
+                Icon(
+                    Icons.Filled.Home,
+                    contentDescription = "Home",
+                    modifier = Modifier.size(32.dp) // Augmente la taille de l'icône Home
+                )
+            }
+            // Icône Add
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.medium)
+                    .background(backgroundColor)
+                    .border(
+                        2.5.dp,
+                        Color.Black,
+                        MaterialTheme.shapes.medium
+                    ) // Bordure (couleur et épaisseur
+                    .size(32.dp) // Taille du cadre carré
+            ) {
+                IconButton(onClick = {
+                    val intent = Intent(context, PostActivity::class.java)
+                    context.startActivity(intent)
+                }) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = "Add",
+                        modifier = Modifier.size(32.dp), // Ajuste la taille de l'icône Add à l'intérieur du
+                        tint = Color.Black
+                    )
+                }
+            }
+            // Icône de profil
+            IconButton(onClick = {
+                // Rediriger vers ProfileViewActivity
+                val intent = Intent(context, ProfileViewActivity::class.java)
+                context.startActivity(intent)
+            }) {
+                val imagePainter = if (!profilePictureUrl.isNullOrEmpty()) {
+                    rememberImagePainter(profilePictureUrl)
+                } else {
+                    painterResource(id = R.drawable.ic_launcher_background) // Image de profil par défaut
+                }
+                Image(
+                    painter = imagePainter,
+                    contentDescription = "Profile",
+                    modifier = Modifier
+                        .size(40.dp) // Set the size of the icon
+                        .clip(CircleShape) // Make the image circular
+                        .fillMaxSize(), // Ensure the image fills the space
+                    contentScale = ContentScale.Crop // Crop the image if necessary to fit
+                )
             }
         }
     }
 }
+
 
 @Composable
 fun ProfileInfo(
@@ -533,7 +615,7 @@ private fun unfollowUser(
 
 
 @Composable
-fun PostGrid(posts: List<Post>) {
+fun PostGrid(posts: List<Post>, activity: ComponentActivity) {
     val placeholdersNeeded = if (posts.size % 3 == 0) 0 else 3 - (posts.size % 3)
 
     val updatedPosts = posts + List(placeholdersNeeded) { Post() }
@@ -550,7 +632,7 @@ fun PostGrid(posts: List<Post>) {
             ) {
                 repeat(postsPerRow) { columnIndex ->
                     val postIndex = rowIndex * postsPerRow + columnIndex
-                    PostImage(updatedPosts.getOrNull(postIndex))
+                    PostImage(updatedPosts.getOrNull(postIndex), activity)
                 }
             }
             Spacer(modifier = Modifier.height(1.dp))
@@ -559,7 +641,7 @@ fun PostGrid(posts: List<Post>) {
 }
 
 @Composable
-fun PostImage(post: Post?) {
+fun PostImage(post: Post?, activity: ComponentActivity) {
     if (post != null) {
         Image(
             painter = rememberImagePainter(post.image),
@@ -567,7 +649,10 @@ fun PostImage(post: Post?) {
             modifier = Modifier
                 .size(125.dp)
                 .padding(1.dp)
-                .clickable { /* TODO: Redirect to the post (anthony part) */ }
+                .clickable {
+                    val intent = Intent(activity, FeedActivity::class.java)
+                    activity.startActivity(intent)
+                }
                 .clip(MaterialTheme.shapes.small),
             contentScale = ContentScale.Crop
         )

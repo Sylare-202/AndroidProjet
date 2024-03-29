@@ -218,7 +218,7 @@ fun PostPage() {
                                 imageUri,
                                 context
                             )
-                            val indent = Intent(context, MainActivity::class.java)
+                            val indent = Intent(context, FeedActivity::class.java)
                             context.startActivity(indent)
                         },
                         modifier = Modifier

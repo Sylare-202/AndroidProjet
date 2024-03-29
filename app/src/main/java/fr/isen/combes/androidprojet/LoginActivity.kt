@@ -85,7 +85,7 @@ fun LoginPage() {
                 // L'URL de la photo de profil est récupérée avec succès
                 val profilePictureUrl = snapshot.child("profilePicture").value.toString()
                 // Redirection vers MainActivity avec l'URL de la photo de profil
-                val intent = Intent(context, MainActivity::class.java).apply {
+                val intent = Intent(context, FeedActivity::class.java).apply {
                     putExtra("profilePictureUrl", profilePictureUrl)
                 }
                 context.startActivity(intent)
@@ -256,8 +256,7 @@ fun loginUser(email: String, password: String, context: Context) {
     auth.signInWithEmailAndPassword(email, password).addOnCompleteListener { task ->
         if (task.isSuccessful) {
             Toast.makeText(context, "Vous êtes maintenant connecté !", Toast.LENGTH_SHORT).show()
-            // TODO: Redirect to HomeActivity
-            val indent = Intent(context, MainActivity::class.java)
+            val indent = Intent(context, FeedActivity::class.java)
             context.startActivity(indent)
         } else {
             Toast.makeText(context, "Erreur lors de la connexion : ${task.exception?.localizedMessage}", Toast.LENGTH_LONG).show()

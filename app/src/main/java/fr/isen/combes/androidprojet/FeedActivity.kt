@@ -114,7 +114,7 @@ data class Comment(
 )
 
 
-class MainActivity : ComponentActivity() {
+class FeedActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
